@@ -1,5 +1,5 @@
 # -*- mode: dockerfile; coding: utf-8 -*-
-FROM debian:bullseye
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
