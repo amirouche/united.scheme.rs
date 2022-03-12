@@ -29,7 +29,7 @@ scheme-united-version () {
 }
 
 scheme-united-available () {
-    find $SCHEME_UNITED_PREFIX/bin/ -name "scheme-united-*" -exec sh -c 'basename {} | cut -d"-" -f3' \; | grep -v current | sort
+    find $SCHEME_UNITED_PREFIX/bin/ -name "scheme-united-*" -exec sh -c 'basename {} | cut -d"-" -f3' \; | grep -v current | grep -v mit | sort
 }
 
 scheme-united-install () {
