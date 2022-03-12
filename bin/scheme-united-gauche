@@ -1,0 +1,39 @@
+#!/bin/bash
+
+
+HELP_MAIN="usage: scheme-united gauche <sub-commands> [options]"
+
+scheme-united-gauche-install () {
+    PREFIX=$1
+
+    if [ "x$PREFIX" == "x" ]; then
+        PREFIX=$SCHEME_UNITED_PREFIX
+    fi
+
+    mkdir -p $PREFIX/src
+    cd $PREFIX/src
+    rm -rf get-gauche.sh
+    wget https://raw.githubusercontent.com/shirok/get-gauche/master/get-gauche.sh
+    bash get-gauche.sh --prefix=$PREFIX/ --force --skip-tests --auto
+    git clone https://github.com/shirok/Gauche gauche
+    cd gauche
+    ./DIST gen
+    ./configure --prefix=$PREFIX/
+    make -j $SCHEME_UNITED_CORE_COUNT
+    make install
+}
+
+scheme-united-gauche-run () {
+    gosh -r7 -I $SCHEME_UNITED_PREFIX/lib/ $@
+}
+
+scheme-united-gauche-repl () {
+    rlwrap gosh -r7 -I$SCHEME_UNITED_PREFIX/lib/
+}
+
+scheme-united-gauche-version () {
+    # TODO: Use Version flag @ https://srfi.schemers.org/srfi-176/
+    gosh -V
+}
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh

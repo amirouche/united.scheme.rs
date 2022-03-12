@@ -1,0 +1,38 @@
+#!/bin/bash
+
+HELP_MAIN="usage: scheme-united racket <sub-commands> [options]"
+
+scheme-united-racket-install () {
+    PREFIX=$1
+
+    if [ "x$PREFIX" == "x" ]; then
+        PREFIX=$SCHEME_UNITED_PREFIX
+    fi
+
+    mkdir -p $PREFIX/src
+    cd $PREFIX/src
+    rm -rf racket-8.3-x86_64-linux-cs.sh
+    wget "https://download.racket-lang.org/installers/8.3/racket-8.3-x86_64-linux-cs.sh"
+    sh racket-8.3-x86_64-linux-cs.sh --unix-style --dest $PREFIX/opt/racket --create-dir
+    cd $PREFIX
+    echo a | ./opt/racket/bin/raco pkg install --scope installation r7rs
+}
+
+scheme-united-racket-run () {
+    SOURCE=$(mktemp --tmpdir=$SCHEME_UNITED_PREFIX/tmp/ $(basename $1).XXXXXX.scm)
+    echo "#lang r7rs" >> $SOURCE
+    tail -n +2 $1 >> $SOURCE
+    shift
+    PATH=$SCHEME_UNITED_PREFIX/opt/racket/bin/:$PATH racket $SOURCE $@
+}
+
+scheme-united-racket-repl () {
+    PLTCOLLECTS=$SCHEME_UNITED_PREFIX/lib/: racket
+}
+
+scheme-united-racket-version () {
+    # TODO: Use Version flag @ https://srfi.schemers.org/srfi-176/
+    racket --version
+}
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh

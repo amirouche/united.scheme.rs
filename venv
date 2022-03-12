@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -e
+# set -x
+
+# TODO: Avoid bashism, make POSIX compliant
+
+if test -d "$(pwd)/.git"; then
+    if [[ -z "$SCHEME_UNITED_VENV" ]]; then
+        export SCHEME_UNITED_VENV=yes
+        # TODO: make configurable
+        export SCHEME_UNITED_CORE_COUNT=$(nproc --ignore=1)
+        if [ "x$1" != "x" ]; then
+            export SCHEME_UNITED_PREFIX=$1
+            shift
+        else
+            export SCHEME_UNITED_PREFIX=$(pwd)
+        fi
+        export PATH="$SCHEME_UNITED_PREFIX/bin:$PATH"
+        if [[ -z "$@" ]]; then
+            export PS1="(scheme-united) $PS1"
+            echo ""
+            echo "  🚀 🛰  Entering scheme-united environment 🌝 🌱"
+            echo ""
+            $SHELL
+        else
+            exec $@
+        fi
+    else
+        echo "You are already in a virtual environment!"
+    fi
+else
+    echo "You need to run $0 from the root of the repository..."
+    exit 1
+fi

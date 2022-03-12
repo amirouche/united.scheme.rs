@@ -1,0 +1,34 @@
+#!/bin/bash
+
+HELP_MAIN="usage: scheme-united chibi <sub-commands> [options]"
+
+scheme-united-chibi-install () {
+    PREFIX=$1
+
+    if [ "x$PREFIX" == "x" ]; then
+        PREFIX=$SCHEME_UNITED_PREFIX
+    fi
+
+    mkdir -p $PREFIX/src
+    cd $PREFIX/src
+    rm -rf chibi
+    git clone https://github.com/ashinn/chibi-scheme/ chibi
+    cd chibi
+    git checkout 0.10
+    make PREFIX=$PREFIX -j $SCHEME_UNITED_CORE_COUNT install
+}
+
+scheme-united-chibi-run () {
+    LD_LIBRARY_PATH=$SCHEME_UNITED_PREFIX/lib chibi-scheme -I $SCHEME_UNITED_PREFIX/lib/ $1
+}
+
+scheme-united-chibi-repl () {
+    rlwrap chibi-scheme -I $SCHEME_UNITED_PREFIX/lib/
+}
+
+scheme-united-chibi-version () {
+    # TODO: Use Version flag @ https://srfi.schemers.org/srfi-176/
+    chibi-scheme -V
+}
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh

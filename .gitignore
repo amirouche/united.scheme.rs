@@ -11,3 +11,6 @@ bin/
 include/
 lib/
 share/
+doc/
+info/
+opt/

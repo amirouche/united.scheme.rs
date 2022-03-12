@@ -1,0 +1,49 @@
+#!/bin/bash
+
+HELP_MAIN="usage: scheme-united cyclone <sub-commands> [options]"
+
+
+scheme-united-cyclone-install () {
+    PREFIX=$1
+
+    if [ "x$PREFIX" == "x" ]; then
+        PREFIX=$SCHEME_UNITED_PREFIX
+    fi
+
+    mkdir -p $PREFIX/src
+    cd $PREFIX/src
+
+    wget https://github.com/justinethier/cyclone-bootstrap/archive/refs/tags/v0.33.0.tar.gz -O cyclone.tar.gz
+    tar xvf cyclone.tar.gz
+    cd cyclone-bootstrap-*/
+
+    make PREFIX=$PREFIX/ -j $SCHEME_UNITED_CORE_COUNT
+    make PREFIX=$PREFIX/ install
+
+    cd ../
+    git clone https://github.com/justinethier/cyclone cyclone
+    cd cyclone
+
+    PATH=../bin:$PATH make PREFIX=$PREFIX/ -j $SCHEME_UNITED_CORE_COUNT
+    PATH=../bin:$PATH make PREFIX=$PREFIX/ install
+}
+
+scheme-united-cyclone-run () {
+    SOURCE=$(mktemp --tmpdir=/tmp/ $(basename $1).XXXXXX.scm)
+    echo "(import (scheme base))" >> $SOURCE
+    tail -n +2 $1 >> $SOURCE
+    $SCHEME_UNITED_PREFIX/opt/live/cyclone/bin/cyclone -A $SCHEME_UNITED_PREFIX/lib/ -A $(pwd) $SOURCE
+    shift
+    exec /tmp/$(basename $SOURCE .scm) $@
+}
+
+scheme-united-cyclone-repl () {
+    rlwrap icyc -A $SCHEME_UNITED_PREFIX/lib
+}
+
+scheme-united-cyclone-version () {
+    # TODO: Use Version flag @ https://srfi.schemers.org/srfi-176/
+    cyclone -v
+}
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh

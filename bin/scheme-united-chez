@@ -1,0 +1,41 @@
+#!/bin/bash
+
+
+HELP_MAIN="usage: scheme-united chez <sub-commands> [options]"
+
+
+scheme-united-chez-install () {
+    PREFIX=$1
+
+    if [ "x$PREFIX" == "x" ]; then
+        PREFIX=$SCHEME_UNITED_PREFIX
+    fi
+
+    mkdir -p $PREFIX/src/
+    cd $PREFIX/src
+    rm -rf chez
+    git clone --depth=1 https://github.com/cisco/ChezScheme chez
+    cd chez
+    ./configure --disable-curses --disable-x11 --threads --installprefix=$PREFIX/
+    make -j $SCHEME_UNITED_CORE_COUNT
+    make install
+}
+
+scheme-united-chez-run () {
+    SOURCE=$(mktemp --tmpdir=/tmp/ $(basename $1).XXXXXX.scm)
+    echo "(import (only (chezscheme) import))" >> $SOURCE
+    tail -n +2 $1 >> $SOURCE
+    shift
+    PATH=$SCHEME_UNITED_PREFIX/opt/live/chez/bin:$PATH scheme --libexts .chez.sls:.sls --libdirs $SCHEME_UNITED_PREFIX/lib/:$(pwd) --program $SOURCE $@
+}
+
+scheme-united-chez-repl () {
+    rlwrap scheme --libexts .chez.sls:.sls --libdirs $SCHEME_UNITED_PREFIX/lib/
+}
+
+scheme-united-chez-version () {
+    # TODO: Use Version flag @ https://srfi.schemers.org/srfi-176/
+    scheme --version
+}
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh

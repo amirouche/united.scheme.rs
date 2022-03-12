@@ -1,0 +1,54 @@
+#!/bin/bash
+
+
+HELP_MAIN="usage: scheme-united mit <sub-commands> [options]"
+
+
+scheme-united-mit-install () {
+    PREFIX=$1
+
+    if [ "x$PREFIX" == "x" ]; then
+        PREFIX=$SCHEME_UNITED_PREFIX
+    fi
+
+    mkdir -p $PREFIX/src
+    cd $PREFIX/src
+
+    wget https://ftp.gnu.org/gnu/mit-scheme/stable.pkg/11.2/mit-scheme-11.2-x86-64.tar.gz
+    tar xvf mit-scheme-11.2-x86-64.tar.gz
+    cd mit-scheme-11.2/src
+    ./Setup.sh
+    ./configure --prefix=$PREFIX/
+    make -j$SCHEME_UNITED_CORE_COUNT
+    make install
+
+    cd ../../
+
+    git clone https://git.savannah.gnu.org/git/mit-scheme.git mit
+    cd mit/src/
+    PATH=$(pwd)/../../bin/:$PATH ./Setup.sh
+    PATH=$(pwd)/../../bin/:$PATH ./configure --prefix=$PREFIX/
+    PATH=$(pwd)/../../bin/:$PATH make -j$SCHEME_UNITED_CORE_COUNT
+    PATH=$(pwd)/../../bin/:$PATH make install
+}
+
+scheme-united-mit-run () {
+    set -xe
+    SOURCE=$(mktemp --tmpdir=/tmp/ $(basename $1).XXXXXX.scm)
+    echo '(import (scheme base))' >> $SOURCE
+    tail -n +2 $1 >> $SOURCE
+    shift
+
+    PATH=$SCHEME_UNITED_PREFIX/opt/live/mit/bin:$PATH mit-scheme --batch-mode --eval "(find-scheme-libraries!  \"$(pwd)/live/\")" --load $SOURCE --eval "(exit 0)" -- $@
+}
+
+scheme-united-mit-repl () {
+    PATH=$SCHEME_UNITED_PREFIX/opt/live/mit/bin:$PATH rlwrap mit-scheme --eval "(find-scheme-libraries! \"$SCHEME_UNITED_PREFIX/lib/\")"
+}
+
+scheme-united-mit-version () {
+    # TODO: Use Version flag @ https://srfi.schemers.org/srfi-176/
+    PATH=$SCHEME_UNITED_PREFIX/opt/live/mit/bin:$PATH mit-scheme --version
+}
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh

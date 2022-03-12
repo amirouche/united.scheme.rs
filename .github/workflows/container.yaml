@@ -1,0 +1,73 @@
+name: container
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: scheme-united
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          ref: hello-schemer
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/amirouche/scheme-united:latest
+
+      # - name: chez
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live chez check'
+      # - name: chibi
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live chibi check'
+      # - name: chicken
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live chicken check'
+      # - name: cyclone
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live cyclone check'
+      # - name: gambit
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live gambit check'
+      # - name: gauche
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live gauche check'
+      # - name: gerbil
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live gerbil check'
+      # - name: guile
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live guile check'
+      # - name: loko
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live loko check'
+      # - name: mit
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live mit check'
+      # - name: racket
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live racket check'
+      # - name: sagittarius
+      #   run: docker run --volume $(pwd):/live --interactive --rm ghcr.io/amirouche/scheme-united:latest bash -c 'cp /live/local/shell-subcommand.sh . && cd /live && SCHEME_LIVE_PREFIX=/ PATH=/opt/live/${{ matrix.implementation }}/bin:/live/local/bin:/usr/bin/:/bin USER=github scheme-live sagittarius check'
+
+      # - name: rename
+      #   run: docker tag ghcr.io/scheme-live/schemers:latest ghcr.io/scheme-live/schemers:stable
+
+      # - name: push
+      #   run: docker push ghcr.io/scheme-live/schemers:stable

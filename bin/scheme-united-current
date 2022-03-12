@@ -1,0 +1,23 @@
+#!/bin/bash
+
+scheme-united-current-run () {
+
+    if [ "x$SCHEME_UNITED_CURRENT" == "x" ]; then
+        echo "Oops! Not current Scheme. Retry with something like:
+
+  SCHEME_UNITED_CURRENT=fantastic $@
+
+Or:
+
+  export SCHEME_UNITED_CURRENT=fantastic
+
+Then call the program.
+"
+        exit 1
+    fi
+
+    exec scheme-united-$SCHEME_UNITED_CURRENT run $@
+}
+
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh

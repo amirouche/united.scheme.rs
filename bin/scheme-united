@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# SHORT_DESCRIPTION="My command with various sub commands!"
+# HELP_MAIN="usage: $(basename "$0") <sub-commands> [options]
+#
+# sub-commands are made from alias, function, and executables in PATH."
+
+# scheme-united-chibi () {
+#     echo "chibi install in progress..."
+
+#     source $SCHEME_UNITED_PREFIX/src/shell-subcommand.sh
+# }
+
+alias scheme-united-chibi=scheme-united-chibi
+
+scheme-united-version () {
+    # Based on https://srfi.schemers.org/srfi-176/
+    echo '(command "scheme-united")'
+    echo '(website "https://github.com/amirouche/scheme-united/")'
+    echo '(languages scheme r5rs r6rs r7rs)'
+    echo "(install-dir \"$SCHEME_UNITED_PREFIX\")"
+    echo '(scheme.id united)'
+    echo '(release "2022")'
+    echo '(release.name "Connected Pluto")'
+    echo "(platform \"$(shtool platform --version --format '%sc (%ac) %st (%at) %sp (%ap)'\")\")"
+    echo "(commit \"$(git log --pretty="%H" -1)\")"
+    echo "(kernel-release \"$(uname --kernel-release)\")"
+    echo "(kernel-version \"$(uname --kernel-version)\")"
+}
+
+scheme-united-available () {
+    find $SCHEME_UNITED_PREFIX/bin/ -name "scheme-united-*" -exec sh -c 'basename {} | cut -d"-" -f3' \; | grep -v current | sort
+}
+
+scheme-united-install () {
+    scheme-united available | xargs -i scheme-united {} install $1
+}
+
+# scheme-united-check () {
+#     scheme-united available | xargs -i scheme-united {} check $@
+# }
+
+scheme-united-benchmark () {
+    FORMAT="command:%C\nwall-clock-time:%es\nmemory-average:%Kkb\ncpu:%P"
+    /usr/bin/time -f $FORMAT $@
+}
+
+scheme-united-venv () {
+    SCHEME_UNITED_CURRENT=$1 PATH=$SCHEME_UNITED_PREFIX/opt/live/$1/bin:$PATH $SHELL
+}
+
+source $SCHEME_UNITED_PREFIX/etc/shell-subcommand.sh
