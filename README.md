@@ -1,7 +1,5 @@
 # scheme-united
 
-**work in progress**
-
 The goal of this repository is to document "how to build portable
 scheme libraries, and programs". At this time, it only provides a
 script to install several Scheme implementations on Debian-like
