@@ -71,4 +71,4 @@ supported Scheme implementations. Then you can do for example:
 ### Build your own docker image
 
 A `Dockerfile` is present at the root of this repository. That is the
-one used to build the github image.
+one used to build the docker image hosted at github.
