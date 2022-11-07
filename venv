@@ -1,12 +1,10 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -e
 # set -x
 
-# TODO: Avoid bashism, make POSIX compliant
-
 if test -d "$(pwd)/.git"; then
-    if [[ -z "$SCHEME_UNITED_VENV" ]]; then
+    if [ ! "$SCHEME_UNITED_VENV" ]; then
         export SCHEME_UNITED_VENV=yes
         # TODO: make configurable
         export SCHEME_UNITED_CORE_COUNT=$(nproc --ignore=1)
@@ -17,7 +15,7 @@ if test -d "$(pwd)/.git"; then
             export SCHEME_UNITED_PREFIX=$(pwd)
         fi
         export PATH="$SCHEME_UNITED_PREFIX/bin:$PATH"
-        if [[ -z "$@" ]]; then
+        if [ ! "$@" ]; then
             export PS1="(scheme-united) $PS1"
             echo ""
             echo "  🚀 🛰  Entering scheme-united environment 🌝 🌱"
