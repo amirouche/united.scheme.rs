@@ -92,9 +92,10 @@
          ((file-directory? string) (values 'directory (make-filepath string)))
          ((file-exists? string)
           (values 'file (make-filepath string)))
-         ;; the first char is a dot, the associated path is neither a file
-         ;; or directory, hence it is prolly an extension... breaks when the
-         ;; user made a typo in a file or directory name.
+         ;; the first char is a dot, the associated path is neither a
+         ;; file or a directory, hence it is prolly an
+         ;; extension... breaks when the user made a typo in a file or
+         ;; directory name.
          ((char=? (string-ref string 0) #\.)
           (values 'extension string))
          (else (values 'unknown string)))))
@@ -166,13 +167,6 @@
 	(for-each (lambda (x) (display x) (newline))
 		  (delete-duplicates (map car union))))))
 
-(define chibi-install-version->reference
-  (lambda (version)
-    (case version
-      ((latest) "HEAD")
-      ((stable) "stable")
-      (else version))))
-
 (define worker-count
   (lambda ()
     (let ((count (get-environment-variable "UNITED_WORKER_COUNT")))
@@ -192,7 +186,7 @@
 
 (define chibi-install
   (lambda (version)
-    (define work (string-append (united-prefix-ref) "/chibi"))
+    (define work (string-append (united-prefix-ref) "/chibi/"))
 
     (display (string-append "* Installing chibi @ " work "\n"))
 
@@ -202,27 +196,58 @@
 
     ;; TODO: support cloning with full history
     (run work '() "git" "clone" "--depth=1" "https://github.com/ashinn/chibi-scheme/" "src")
-    (run (string-append work "/src/") '() "git" "checkout"
-	 (chibi-install-version->reference version))
+    (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/")
 	 '()
 	 "make"
 	 (string-append "-j" (number->string (worker-count)))
 	 (string-append "PREFIX=" work)
-	 "install")
-    (create-directory* (string-append work "/../bin"))
-    (let loop ((programs (list "chibi-doc" "chibi-ffi" "chibi-scheme" "snow-chibi" "snow-chibi.scm")))
-      (unless (null? programs)
-	(symbolic-link-file (string-append work "/bin/" (car programs))
-			    (string-append work "/../bin/" (car programs)))
-	(loop (cdr programs))))))
+	 "install")))
 
-(unionize 'chibi "latest"
-	  `((install . ,(lambda () (chibi-install 'latest)))))
-(unionize 'chibi "stable"
-	  `((install . ,(lambda () (chibi-install 'stable)))))
 (unionize 'chibi 'v0.10
 	  `((install . ,(lambda () (chibi-install "0.10")))))
+(unionize 'chibi 'stable
+	  `((install . ,(lambda () (chibi-install "stable")))))
+(unionize 'chibi 'latest
+	  `((install . ,(lambda () (chibi-install "HEAD")))))
+
+(define chez-cisco-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/chez-cisco/"))
+
+    (display (string-append "* Installing chez-cisco @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; TODO: support cloning with full history
+    (run work '() "git" "clone" "--depth=1" "https://github.com/cisco/ChezScheme/" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/") '()
+         "sh" "configure" "--disable-curses" "--disable-x11" "--threads"
+         (string-append "--installprefix=" work))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+	 (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "install")
+    (create-directory* (string-append work "/../bin"))
+    (let loop ((programs (list "petite" "scheme" "scheme-script")))
+      (unless (null? programs)
+	(symbolic-link-file (string-append work "/bin/" (car programs))
+			    (string-append work "/../bin/chez-cisco-" (car programs)))
+	(loop (cdr programs))))))
+
+(unionize 'chez-cisco 'v9.5.8
+	  `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
+(unionize 'chez-cisco 'stable
+	  `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
+(unionize 'chez-cisco 'latest
+	  `((install . ,(lambda () (chez-cisco-install "HEAD")))))
 
 (define united-prefix-set
   (lambda (directory)
@@ -245,7 +270,8 @@
 	(let loop ((schemes schemes))
 	  (unless (null? schemes)
 	    (case (string->symbol (car schemes))
-	      ((chibi) (chibi-install 'latest)))
+	      ((chibi) (chibi-install "HEAD"))
+              ((chez-cisco) (chez-cisco-install "HEAD")))
 	    (loop (cdr schemes))))))))
 
 (define accumulator-singleton-flush '(accumulator singleton flush))
@@ -283,7 +309,7 @@
     (apply run
            #f
            `((LD_LIBRARY_PATH . ,(string-append (united-prefix-ref) "/chibi/lib/")))
-           (string-append (united-prefix-ref) "/bin/chibi-scheme")
+           (string-append (united-prefix-ref) "/chibi/bin/chibi-scheme")
            arguments)))
 
 (define chibi-exec
@@ -333,12 +359,14 @@
 (define united-repl
   (lambda (scheme args)
     (case (string->symbol scheme)
-      ((chibi) (chibi-repl args)))))
+      ((chibi) (chibi-repl args))
+      ((chez-cisco) (chez-cisco-repl args)))))
 
 (define united-version
   (lambda (scheme)
     (case (string->symbol scheme)
-      ((chibi) (chibi-version)))))
+      ((chibi) (chibi-version))
+      ((chez-cisco) (chez-cisco-version)))))
 
 (define united-not-implemented
   (lambda (scheme)
@@ -347,12 +375,62 @@
 (define united-compile
   (lambda (scheme)
     (case (string->symbol scheme)
-      ((chibi) (united-not-implemented "chibi")))))
+      ((chibi) (united-not-implemented "chibi"))
+      ((chez-cisco) (united-not-implemented "chez-cisco")))))
 
 (define united-exec
   (lambda (scheme args)
     (case (string->symbol scheme)
-      ((chibi) (chibi-exec args)))))
+      ((chibi) (chibi-exec args))
+      ((chez-cisco) (chez-cisco-exec args)))))
+
+(define chez-run
+  (lambda (chez arguments)
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/" chez "/bin/scheme")
+           arguments)))
+
+(define string-join
+  (lambda (strings separator)
+    (let loop ((out (car strings))
+               (strings (cdr strings)))
+      (if (null? strings)
+          out
+          (loop (string-append out separator (car strings))
+                (cdr strings))))))
+
+(define chez-cisco-version
+  (lambda ()
+    (chez-run "chez-cisco" (list "--version"))))
+
+(define chez-cisco-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files extensions arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "chez-cisco exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "chez-cisco exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "chez-cisco exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "chez-cisco exec" errors)
+        (let ((arguments '()))
+
+          (unless (null? directories)
+            (set! arguments (cons (string-append "--libdirs " (string-join directories ":"))
+                                  arguments)))
+          (unless (null? extensions)
+            (set! arguments (cons (string-append "--libexts " (string-join extensions ":"))
+                                  arguments)))
+          (set! arguments (cons (string-append "--program " (car files))
+                                arguments))
+
+          (chez-run "chez-cisco" arguments))))))
+
 
 (match (cdr (command-line))
  (("available") (united-available #f))
