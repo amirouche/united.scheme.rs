@@ -16,19 +16,27 @@
 
 (define call-with-env
   (lambda (env thunk)
-    ;; TODO: save previous value, if any, and re-install it after.
+    ;; backup variables before overriding
+    (define variables (get-environment-variables))
+    ;; override!
     (let loop ((env env))
       (unless (null? env)
-        ;; XXX: Override existing variable
 	(setenv (symbol->string (caar env)) (cdar env))
 	(loop (cdr env))))
+    ;; call thunk
     (call-with-values thunk
       (lambda args
 	(let loop ((env env))
-	  (unless (null? env)
-            ;; XXX: Unconditionally unset variable
-	    (unsetenv (symbol->string (caar env)))
-	    (loop (cdr env))))
+	  (if (null? env)
+              ;; bring back original variables
+              (let loop ((variables variables))
+                (unless (null? variables)
+                  (setenv (caar variables) (cdar variables))
+                  (loop (cdr variables))))
+	      (begin
+                ;; unset
+                (unsetenv (symbol->string (caar env)))
+	        (loop (cdr env)))))
 	(apply values args)))))
 
 (define (command-line-parse* arguments)
@@ -146,6 +154,7 @@
     (eq? object run-singleton-failure)))
 
 (define (run directory env . command)
+  (pk 'command command)
   (unless (call-with-env env (lambda ()
 			       (if directory
 				   (with-directory directory (lambda () (apply system? command)))
@@ -234,13 +243,7 @@
     (run (string-append work "/src/")
 	 '()
 	 "make"
-         "install")
-    (create-directory* (string-append work "/../bin"))
-    (let loop ((programs (list "petite" "scheme" "scheme-script")))
-      (unless (null? programs)
-	(symbolic-link-file (string-append work "/bin/" (car programs))
-			    (string-append work "/../bin/chez-cisco-" (car programs)))
-	(loop (cdr programs))))))
+         "install")))
 
 (unionize 'chez-cisco 'v9.5.8
 	  `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
@@ -248,6 +251,175 @@
 	  `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
 (unionize 'chez-cisco 'latest
 	  `((install . ,(lambda () (chez-cisco-install "HEAD")))))
+
+
+(define guile-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/guile/"))
+
+    (display (string-append "* Installing guile @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; TODO: support cloning with full history
+    (run work '() "git" "clone" "--depth=1" "https://git.sv.gnu.org/git/guile.git" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/") '()
+         "sh" "autogen.sh")
+    (run (string-append work "/src/") '()
+         "sh" "configure" (string-append "--prefix=" work))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+	 (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "install")))
+
+(unionize 'guile 'latest
+	  `((install . ,(lambda () (guile-install "HEAD")))))
+
+(define chez-racket-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/chez-racket/"))
+
+    (display (string-append "* Installing chez-racket @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; TODO: support cloning with full history
+    (run work '() "git" "clone" "--depth=1" "https://github.com/racket/ChezScheme/" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/") '()
+         "sh" "configure" "--disable-curses" "--disable-x11" "--threads" "--kernelobj"
+         (string-append "--installprefix=" work))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+	 (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "install")))
+
+(unionize 'chez-racket 'latest
+	  `((install . ,(lambda () (chez-racket-install "HEAD")))))
+
+(define gambit-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/gambit/"))
+
+    (display (string-append "* Installing gambit @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; TODO: support cloning with full history
+    (run work '() "git" "clone" "https://github.com/gambit/gambit/" "src")
+    (run (string-append work "/src/") '() "git" "checkout" "v4.9.4")
+    (run (string-append work "/src/") '()
+         "sh" "configure" (string-append "--prefix=" work))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+	 (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "modules"
+	 (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "doc")
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "install")))
+
+(unionize 'chez-racket 'latest
+	  `((install . ,(lambda () (chez-racket-install "HEAD")))))
+
+(define chicken-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/chicken/"))
+
+    (display (string-append "* Installing chicken @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; install latest release to be able to compile from git
+    (run work '() "wget" "https://code.call-cc.org/releases/5.3.0/chicken-5.3.0.tar.gz")
+    (run work '() "tar" "xf" "chicken-5.3.0.tar.gz")
+    (run (string-append work "/chicken-5.3.0") '()
+         "make"
+         (string-append "PREFIX=" work)
+         (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/chicken-5.3.0") '()
+         "make" "install"
+         (string-append "PREFIX=" work))
+
+    ;; TODO: support cloning with full history
+    (run work '() "git" "clone" "--depth=1" "git://code.call-cc.org/chicken-core" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src") '()
+         "make"
+         (string-append "PREFIX=" work)
+         (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/src") '()
+         "make" "install"
+         (string-append "PREFIX=" work))))
+
+(unionize 'chicken 'latest
+	  `((install . ,(lambda () (chicken-install "HEAD")))))
+
+(define cyclone-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/cyclone/"))
+
+    (display (string-append "* Installing cyclone @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; install latest release to be able to compile from git
+    (run work '() "wget" "https://github.com/justinethier/cyclone-bootstrap/archive/refs/tags/v0.33.0.tar.gz")
+    (run work '() "tar" "xf" "v0.33.0.tar.gz")
+    (run (string-append work "/cyclone-bootstrap-0.33.0")
+         '()
+         "make"
+         (string-append "PREFIX=" work)
+         (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/cyclone-bootstrap-0.33.0")
+         '()
+         "make" "install"
+         (string-append "PREFIX=" work))
+
+    ;; TODO: support cloning with full history
+    (run work '() "git" "clone" "--depth=1" "https://github.com/justinethier/cyclone" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
+      (run (string-append work "/src")
+           `((PATH . ,PATH))
+           "make"
+           (string-append "PREFIX=" work)
+           (string-append "-j" (number->string (worker-count))))
+      (run (string-append work "/src")
+           `((PATH . ,PATH))
+           "make" "install"
+           (string-append "PREFIX=" work)))))
+
+(unionize 'chicken 'latest
+	  `((install . ,(lambda () (chicken-install "HEAD")))))
 
 (define united-prefix-set
   (lambda (directory)
@@ -271,7 +443,12 @@
 	  (unless (null? schemes)
 	    (case (string->symbol (car schemes))
 	      ((chibi) (chibi-install "HEAD"))
-              ((chez-cisco) (chez-cisco-install "HEAD")))
+              ((chez-cisco) (chez-cisco-install "HEAD"))
+              ((chez-racket) (chez-racket-install "HEAD"))
+              ((chicken) (chicken-install "HEAD"))
+              ((guile) (guile-install "HEAD"))
+              ((gambit) (gambit-install "HEAD"))
+              ((cyclone) (cyclone-install "HEAD")))
 	    (loop (cdr schemes))))))))
 
 (define accumulator-singleton-flush '(accumulator singleton flush))
@@ -356,17 +533,72 @@
   (lambda ()
     (chibi-run (list "-V"))))
 
+(define guile-repl
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/guile/bin/guile")
+           (list))))
+
+(define guile-version
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/guile/bin/guile")
+           (list "--version"))))
+
 (define united-repl
   (lambda (scheme args)
     (case (string->symbol scheme)
       ((chibi) (chibi-repl args))
-      ((chez-cisco) (chez-cisco-repl args)))))
+      ((chez-cisco) (chez-run "chez-cisco" '()))
+      ((chez-racket) (chez-run "chez-racket" '()))
+      ((guile) (guile-repl))
+      ((cyclone) (cyclone-repl))
+      ((chicken) (chicken-repl)))))
+
+(define chicken-version
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/chicken/bin/csi")
+           (list "-version"))))
+
+(define chicken-repl
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/chicken/bin/csi")
+           '())))
+
+(define cyclone-repl
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/cyclone/bin/icyc")
+           '())))
+
+(define cyclone-version
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/cyclone/bin/icyc")
+           '("-v"))))
 
 (define united-version
   (lambda (scheme)
     (case (string->symbol scheme)
       ((chibi) (chibi-version))
-      ((chez-cisco) (chez-cisco-version)))))
+      ((chez-cisco) (chez-cisco-version))
+      ((chez-racket) (chez-racket-version))
+      ((cyclone) (cyclone-version))
+      ((chicken) (chicken-version)))))
 
 (define united-not-implemented
   (lambda (scheme)
@@ -376,13 +608,15 @@
   (lambda (scheme)
     (case (string->symbol scheme)
       ((chibi) (united-not-implemented "chibi"))
-      ((chez-cisco) (united-not-implemented "chez-cisco")))))
+      ((chez-cisco) (united-not-implemented "chez-cisco"))
+      ((chez-racket) (united-not-implemented "chez-racket")))))
 
 (define united-exec
   (lambda (scheme args)
     (case (string->symbol scheme)
       ((chibi) (chibi-exec args))
-      ((chez-cisco) (chez-cisco-exec args)))))
+      ((chez-cisco) (chez-cisco-exec args))
+      ((chez-racket) (chez-racket-exec args)))))
 
 (define chez-run
   (lambda (chez arguments)
@@ -405,6 +639,10 @@
   (lambda ()
     (chez-run "chez-cisco" (list "--version"))))
 
+(define chez-racket-version
+  (lambda ()
+    (chez-run "chez-racket" (list "--version"))))
+
 (define chez-cisco-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
@@ -426,10 +664,34 @@
           (unless (null? extensions)
             (set! arguments (cons (string-append "--libexts " (string-join extensions ":"))
                                   arguments)))
-          (set! arguments (cons (string-append "--program " (car files))
-                                arguments))
+          (set! arguments (cons* "--program" (car files) arguments))
 
           (chez-run "chez-cisco" arguments))))))
+
+(define chez-racket-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files extensions arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "chez-racket exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "chez-racket exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "chez-racket exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "chez-racket exec" errors)
+        (let ((arguments '()))
+
+          (unless (null? directories)
+            (set! arguments (cons (string-append "--libdirs " (string-join directories ":"))
+                                  arguments)))
+          (unless (null? extensions)
+            (set! arguments (cons (string-append "--libexts " (string-join extensions ":"))
+                                  arguments)))
+          (set! arguments (cons* "--program" (car files) arguments))
+
+          (chez-run "chez-racket" arguments))))))
 
 
 (match (cdr (command-line))
