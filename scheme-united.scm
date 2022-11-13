@@ -252,7 +252,6 @@
 (unionize 'chez-cisco 'latest
 	  `((install . ,(lambda () (chez-cisco-install "HEAD")))))
 
-
 (define guile-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/guile/"))
@@ -282,6 +281,38 @@
 (unionize 'guile 'latest
 	  `((install . ,(lambda () (guile-install "HEAD")))))
 
+(define gauche-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/gauche/"))
+
+    (display (string-append "* Installing gauche @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; TODO: support cloning with full history
+    (run work '() "wget" "https://raw.githubusercontent.com/shirok/get-gauche/master/get-gauche.sh")
+    (run work '() "bash" "get-gauche.sh" (string-append "--prefix=" work) "--force" "--skip-tests" "--auto")
+    (run work '() "git" "clone" "--depth=1" "https://github.com/shirok/Gauche" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/") '()
+         "sh" "DIST" "gen")
+    (run (string-append work "/src/") '()
+         "sh" "configure" (string-append "--prefix=" work))
+    (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
+      (run (string-append work "/src/")
+	   `((PATH . ,PATH))
+	   "make"
+	   (string-append "-j" (number->string (worker-count)))))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "install")))
+
+(unionize 'gauche 'latest
+	  `((install . ,(lambda () (gauche-install "HEAD")))))
+
 (define chez-racket-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/chez-racket/"))
@@ -309,39 +340,6 @@
 
 (unionize 'chez-racket 'latest
 	  `((install . ,(lambda () (chez-racket-install "HEAD")))))
-
-(define gambit-install
-  (lambda (version)
-    (define work (string-append (united-prefix-ref) "/gambit/"))
-
-    (display (string-append "* Installing gambit @ " work "\n"))
-
-    (guard (ex (else #f))
-	   (delete-file-hierarchy work))
-    (create-directory* work)
-
-    ;; TODO: support cloning with full history
-    (run work '() "git" "clone" "https://github.com/gambit/gambit/" "src")
-    (run (string-append work "/src/") '() "git" "checkout" "v4.9.4")
-    (run (string-append work "/src/") '()
-         "sh" "configure" (string-append "--prefix=" work))
-    (run (string-append work "/src/")
-	 '()
-	 "make"
-	 (string-append "-j" (number->string (worker-count))))
-    (run (string-append work "/src/")
-	 '()
-	 "make"
-         "modules"
-	 (string-append "-j" (number->string (worker-count))))
-    (run (string-append work "/src/")
-	 '()
-	 "make"
-         "doc")
-    (run (string-append work "/src/")
-	 '()
-	 "make"
-         "install")))
 
 (unionize 'chez-racket 'latest
 	  `((install . ,(lambda () (chez-racket-install "HEAD")))))
@@ -447,7 +445,7 @@
               ((chez-racket) (chez-racket-install "HEAD"))
               ((chicken) (chicken-install "HEAD"))
               ((guile) (guile-install "HEAD"))
-              ((gambit) (gambit-install "HEAD"))
+              ((gauche) (gauche-install "HEAD"))
               ((cyclone) (cyclone-install "HEAD")))
 	    (loop (cdr schemes))))))))
 
@@ -556,6 +554,7 @@
       ((chez-cisco) (chez-run "chez-cisco" '()))
       ((chez-racket) (chez-run "chez-racket" '()))
       ((guile) (guile-repl))
+      ((gauche) (gauche-repl))
       ((cyclone) (cyclone-repl))
       ((chicken) (chicken-repl)))))
 
@@ -567,6 +566,14 @@
            (string-append (united-prefix-ref) "/chicken/bin/csi")
            (list "-version"))))
 
+(define gauche-version
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/gauche/bin/gosh")
+           (list "-V"))))
+
 (define chicken-repl
   (lambda ()
     (apply run
@@ -574,6 +581,15 @@
            '()
            (string-append (united-prefix-ref) "/chicken/bin/csi")
            '())))
+
+
+(define gauche-repl
+  (lambda ()
+    (apply run
+           #f
+           '()
+           (string-append (united-prefix-ref) "/gauche/bin/repl")
+           (list "-r7"))))
 
 (define cyclone-repl
   (lambda ()
@@ -598,6 +614,7 @@
       ((chez-cisco) (chez-cisco-version))
       ((chez-racket) (chez-racket-version))
       ((cyclone) (cyclone-version))
+      ((gauche) (gauche-version))
       ((chicken) (chicken-version)))))
 
 (define united-not-implemented
