@@ -153,13 +153,14 @@
   (lambda (object)
     (eq? object run-singleton-failure)))
 
-(define (run directory env . command)
-  (pk 'command command)
-  (unless (call-with-env env (lambda ()
-			       (if directory
-				   (with-directory directory (lambda () (apply system? command)))
-				   (apply system? command))))
-    (raise run-singleton-failure)))
+(define run
+  (lambda (directory env . command)
+    (pk command)
+    (unless (call-with-env env (lambda ()
+			         (if directory
+				     (with-directory directory (lambda () (apply system? command)))
+				     (apply system? command))))
+      (raise run-singleton-failure))))
 
 (define union '())
 
@@ -291,8 +292,8 @@
 	   (delete-file-hierarchy work))
     (create-directory* work)
 
-    ;; TODO: support cloning with full history
     (run work '() "wget" "https://raw.githubusercontent.com/shirok/get-gauche/master/get-gauche.sh")
+    ;; TODO: support cloning with full history
     (run work '() "bash" "get-gauche.sh" (string-append "--prefix=" work) "--force" "--skip-tests" "--auto")
     (run work '() "git" "clone" "--depth=1" "https://github.com/shirok/Gauche" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
@@ -479,12 +480,12 @@
             (loop (cdr errors))))
         (exit 1)))))
 
-(define chibi-run
+(define chicken-run
   (lambda (arguments)
     (apply run
            #f
-           `((LD_LIBRARY_PATH . ,(string-append (united-prefix-ref) "/chibi/lib/")))
-           (string-append (united-prefix-ref) "/chibi/bin/chibi-scheme")
+           '()
+           (string-append (united-prefix-ref) "/chicken/bin/csi")
            arguments)))
 
 (define chibi-exec
@@ -558,6 +559,48 @@
       ((cyclone) (cyclone-repl))
       ((chicken) (chicken-repl)))))
 
+(define directory-name
+  (lambda (string)
+    (let loop ((index (string-length string)))
+      (if (char=? (string-ref string (- index 1)) #\/)
+          (substring string 0 index)
+          (loop (- index 1))))))
+
+(define chibi-run
+   (lambda (arguments)
+     (apply run
+            #f
+            `((LD_LIBRARY_PATH . ,(string-append (united-prefix-ref) "/chibi/lib/")))
+            (string-append (united-prefix-ref) "/chibi/bin/chibi-scheme")
+            arguments)))
+
+(define chicken-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files extensions arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "chicken exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "chicken exec expect only one file" files)))
+        (unless (null? extensions)
+          (errors (cons "chicken exec does not support custom extensions" extensions)))
+        (unless (null? arguments)
+          (errors (cons "chicken exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "chicken exec" errors)
+
+        (run (directory-name (car files))
+             '()
+             (string-append (united-prefix-ref) "/chicken/bin/csm"))
+        (run (directory-name (car files))
+             '()
+             (string-append (united-prefix-ref) "/chicken/bin/csc")
+             "-R" "r7rs" (car files) "-o" "a.out")
+        (run (directory-name (car files))
+             '()
+             "./a.out")))))
+
 (define chicken-version
   (lambda ()
     (apply run
@@ -581,7 +624,6 @@
            '()
            (string-append (united-prefix-ref) "/chicken/bin/csi")
            '())))
-
 
 (define gauche-repl
   (lambda ()
@@ -632,6 +674,7 @@
   (lambda (scheme args)
     (case (string->symbol scheme)
       ((chibi) (chibi-exec args))
+      ((chicken) (chicken-exec args))
       ((chez-cisco) (chez-cisco-exec args))
       ((chez-racket) (chez-racket-exec args)))))
 
@@ -673,15 +716,17 @@
           (errors (cons "chez-cisco exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "chez-cisco exec" errors)
-        (let ((arguments '()))
 
+        (let ((arguments '()))
           (unless (null? directories)
-            (set! arguments (cons (string-append "--libdirs " (string-join directories ":"))
-                                  arguments)))
+            (set! arguments (cons* "--libdirs"
+                                   (string-join directories ":")
+                                   arguments)))
           (unless (null? extensions)
-            (set! arguments (cons (string-append "--libexts " (string-join extensions ":"))
+            (set! arguments (cons* "--libexts"
+                                   (string-join extensions ":")
                                   arguments)))
-          (set! arguments (cons* "--program" (car files) arguments))
+          (set! arguments (append arguments (list "--program" (car files))))
 
           (chez-run "chez-cisco" arguments))))))
 
@@ -699,14 +744,16 @@
 
         (maybe-display-errors-and-exit "chez-racket exec" errors)
         (let ((arguments '()))
-
           (unless (null? directories)
-            (set! arguments (cons (string-append "--libdirs " (string-join directories ":"))
-                                  arguments)))
+            (set! arguments (cons* "--libdirs"
+                                   (string-join directories ":")
+                                   arguments)))
           (unless (null? extensions)
-            (set! arguments (cons (string-append "--libexts " (string-join extensions ":"))
-                                  arguments)))
-          (set! arguments (cons* "--program" (car files) arguments))
+            (set! arguments (cons* "--libexts"
+                                   (string-join extensions ":")
+                                   arguments)))
+
+          (set! arguments (append arguments (list "--program" (car files))))
 
           (chez-run "chez-racket" arguments))))))
 
