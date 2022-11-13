@@ -155,7 +155,7 @@
 
 (define run
   (lambda (directory env . command)
-    (pk command)
+    ;; (pk command)
     (unless (call-with-env env (lambda ()
 			         (if directory
 				     (with-directory directory (lambda () (apply system? command)))
@@ -507,6 +507,54 @@
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories)))
           (chibi-run (append arguments files extra)))))))
 
+(define gauche-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files extensions arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "gauche exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "gauche exec expect only one file" files)))
+        (unless (null? extensions)
+          (errors (cons "gauche exec does not support custom extensions" extensions)))
+        (unless (null? arguments)
+          (errors (cons "gauche exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "gauche exec" errors)
+
+        (let ((arguments (map (lambda (x) (string-append "-I" x)) directories)))
+          (apply run
+                 #f
+                 '()
+                 (string-append (united-prefix-ref) "/gauche/bin/gosh")
+                 "-r7"
+                 (append arguments files extra)))))))
+
+(define guile-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files extensions arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "guile exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "guile exec expect only one file" files)))
+        (unless (null? extensions)
+          (errors (cons "guile exec does not support custom extensions" extensions)))
+        (unless (null? arguments)
+          (errors (cons "guile exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "guile exec" errors)
+
+        (let ((arguments (append-map (lambda (x) (list "-L" x)) directories)))
+          (apply run
+                 #f
+                 '()
+                 (string-append (united-prefix-ref) "/guile/bin/guile")
+                 "--r7rs"
+                 (append arguments files extra)))))))
+
 (define chibi-repl
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
@@ -538,7 +586,7 @@
            #f
            '()
            (string-append (united-prefix-ref) "/guile/bin/guile")
-           (list))))
+           (list "--r7rs"))))
 
 (define guile-version
   (lambda ()
@@ -597,9 +645,11 @@
              '()
              (string-append (united-prefix-ref) "/chicken/bin/csc")
              "-R" "r7rs" (car files) "-o" "a.out")
-        (run (directory-name (car files))
+        (apply run (directory-name (car files))
              '()
-             "./a.out")))))
+             "./a.out"
+             extra)))))
+
 
 (define chicken-version
   (lambda ()
@@ -673,6 +723,8 @@
 (define united-exec
   (lambda (scheme args)
     (case (string->symbol scheme)
+      ((gauche) (gauche-exec args))
+      ((guile) (guile-exec args))
       ((chibi) (chibi-exec args))
       ((chicken) (chicken-exec args))
       ((chez-cisco) (chez-cisco-exec args))
@@ -728,7 +780,7 @@
                                   arguments)))
           (set! arguments (append arguments (list "--program" (car files))))
 
-          (chez-run "chez-cisco" arguments))))))
+          (chez-run "chez-cisco" (append arguments extra)))))))
 
 (define chez-racket-exec
   (lambda (arguments)
@@ -755,7 +807,7 @@
 
           (set! arguments (append arguments (list "--program" (car files))))
 
-          (chez-run "chez-racket" arguments))))))
+          (chez-run "chez-racket" (append arguments extra)))))))
 
 
 (match (cdr (command-line))
