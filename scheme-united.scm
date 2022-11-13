@@ -614,6 +614,13 @@
           (substring string 0 index)
           (loop (- index 1))))))
 
+(define basename
+  (lambda (string)
+    (let loop ((index (string-length string)))
+      (if (char=? (string-ref string (- index 1)) #\/)
+          (substring string index (string-length string))
+          (loop (- index 1))))))
+
 (define chibi-run
    (lambda (arguments)
      (apply run
@@ -649,7 +656,6 @@
              '()
              "./a.out"
              extra)))))
-
 
 (define chicken-version
   (lambda ()
@@ -808,7 +814,6 @@
           (set! arguments (append arguments (list "--program" (car files))))
 
           (chez-run "chez-racket" (append arguments extra)))))))
-
 
 (match (cdr (command-line))
  (("available") (united-available #f))
