@@ -84,9 +84,8 @@
   scheme-united available [SCHEME]
   scheme-united install [--latest|--stable|--version=VERSION] SCHEME ...
   scheme-united prefix [DIRECTORY]
-  scheme-united SCHEME repl [DIRECTORY ...] [EXTENSION ...]
-  scheme-united SCHEME compile [--optimize-level=0-3] [DIRECTORY ...] [EXTENSION ...] PROGRAM A.OUT
-  scheme-united SCHEME exec [DIRECTORY ...] [EXTENSION ...] PROGRAM [-- EXTRA ...]
+  scheme-united SCHEME repl [DIRECTORY ...]
+  scheme-united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
   scheme-united SCHEME version
 
 ")))
@@ -450,6 +449,9 @@
               ((cyclone) (cyclone-install "HEAD")))
 	    (loop (cdr schemes))))))))
 
+(unionize 'cyclone 'latest
+	  `((install . ,(lambda () (cyclone-install "HEAD")))))
+
 (define accumulator-singleton-flush '(accumulator singleton flush))
 
 (define (accumulator-flush? object)
@@ -506,6 +508,33 @@
 
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories)))
           (chibi-run (append arguments files extra)))))))
+
+(define cyclone-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files extensions arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "cyclone exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "cyclone exec expect only one file" files)))
+        (unless (null? extensions)
+          (errors (cons "cyclone exec does not support custom extensions" extensions)))
+        (unless (null? arguments)
+          (errors (cons "cyclone exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "cyclone exec" errors)
+
+        (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
+              (a.out (basename-without-extension (car files))))
+          (apply run #f
+                 '()
+                 (string-append (united-prefix-ref) "/cyclone/bin/cyclone")
+                 (append arguments files))
+          (apply run (directory-path (car files))
+                 '()
+                 (string-append "./" a.out)
+                 extra))))))
 
 (define gauche-exec
   (lambda (arguments)
@@ -607,7 +636,7 @@
       ((cyclone) (cyclone-repl))
       ((chicken) (chicken-repl)))))
 
-(define directory-name
+(define directory-path
   (lambda (string)
     (let loop ((index (string-length string)))
       (if (char=? (string-ref string (- index 1)) #\/)
@@ -619,6 +648,14 @@
     (let loop ((index (string-length string)))
       (if (char=? (string-ref string (- index 1)) #\/)
           (substring string index (string-length string))
+          (loop (- index 1))))))
+
+(define basename-without-extension
+  (lambda (string)
+    (define filename (basename string))
+    (let loop ((index (string-length filename)))
+      (if (char=? (string-ref filename (- index 1)) #\.)
+          (substring filename 0 (- index 1))
           (loop (- index 1))))))
 
 (define chibi-run
@@ -645,17 +682,19 @@
 
         (maybe-display-errors-and-exit "chicken exec" errors)
 
-        (run (directory-name (car files))
+        (run (directory-path (car files))
              '()
-             (string-append (united-prefix-ref) "/chicken/bin/csm"))
-        (run (directory-name (car files))
+             (string-append (united-prefix-ref) "/chicken/bin/csm")
+             "-r7rs"
+             ".")
+        (run (directory-path (car files))
              '()
              (string-append (united-prefix-ref) "/chicken/bin/csc")
-             "-R" "r7rs" (car files) "-o" "a.out")
-        (apply run (directory-name (car files))
-             '()
-             "./a.out"
-             extra)))))
+             "-R" "r7rs" (car files) "-o" (basename-without-extension (car files)))
+        (apply run (directory-path (car files))
+               '()
+               (string-append "./" (basename-without-extension (car files)))
+               extra)))))
 
 (define chicken-version
   (lambda ()
@@ -733,6 +772,7 @@
       ((guile) (guile-exec args))
       ((chibi) (chibi-exec args))
       ((chicken) (chicken-exec args))
+      ((cyclone) (cyclone-exec args))
       ((chez-cisco) (chez-cisco-exec args))
       ((chez-racket) (chez-racket-exec args)))))
 
@@ -816,11 +856,11 @@
           (chez-run "chez-racket" (append arguments extra)))))))
 
 (match (cdr (command-line))
+ (("available" scheme) (united-available scheme))
  (("available") (united-available #f))
  (("install" . args) (united-install args))
  (("prefix" directory) (united-prefix-set directory))
  (("prefix") (united-prefix-display))
- ((scheme "available") (united-available scheme))
  ((scheme "compile" . args) (united-compile scheme args))
  ((scheme "exec" . args) (united-exec scheme args))
  ((scheme "repl" . args) (united-repl scheme args))
