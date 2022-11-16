@@ -281,6 +281,34 @@
 (unionize 'guile 'latest
 	  `((install . ,(lambda () (guile-install "HEAD")))))
 
+(define gambit-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/gambit/"))
+
+    (display (string-append "* Installing gambit @ " work "\n"))
+
+    (guard (ex (else #f))
+	   (delete-file-hierarchy work))
+    (create-directory* work)
+
+    ;; TODO: support cloning with full history
+    ;; (run work '() "git" "clone" "--depth=1" "https://github.com/gambit/gambit/" "src")
+    (run work '() "git" "clone" "--depth=1" "/home/amirouche/src/scheme/gambit/" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/") '()
+         "sh" "configure" (string-append "--prefix=" work))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+	 (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/src/")
+	 '()
+	 "make"
+         "install")))
+
+(unionize 'gambit 'latest
+	  `((install . ,(lambda () (gambit-install "HEAD")))))
+
 (define gauche-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/gauche/"))
@@ -445,6 +473,7 @@
               ((chez-racket) (chez-racket-install "HEAD"))
               ((chicken) (chicken-install "HEAD"))
               ((guile) (guile-install "HEAD"))
+              ((gambit) (gambit-install "HEAD"))
               ((gauche) (gauche-install "HEAD"))
               ((cyclone) (cyclone-install "HEAD")))
 	    (loop (cdr schemes))))))))
