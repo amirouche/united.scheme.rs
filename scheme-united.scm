@@ -21,23 +21,23 @@
     ;; override!
     (let loop ((env env))
       (unless (null? env)
-	(setenv (symbol->string (caar env)) (cdar env))
-	(loop (cdr env))))
+        (setenv (symbol->string (caar env)) (cdar env))
+        (loop (cdr env))))
     ;; call thunk
     (call-with-values thunk
       (lambda args
-	(let loop ((env env))
-	  (if (null? env)
+        (let loop ((env env))
+          (if (null? env)
               ;; bring back original variables
               (let loop ((variables variables))
                 (unless (null? variables)
                   (setenv (caar variables) (cdar variables))
                   (loop (cdr variables))))
-	      (begin
+              (begin
                 ;; unset
                 (unsetenv (symbol->string (caar env)))
-	        (loop (cdr env)))))
-	(apply values args)))))
+                (loop (cdr env)))))
+        (apply values args)))))
 
 (define (command-line-parse* arguments)
 
@@ -156,9 +156,9 @@
   (lambda (directory env . command)
     ;; (pk command)
     (unless (call-with-env env (lambda ()
-			         (if directory
-				     (with-directory directory (lambda () (apply system? command)))
-				     (apply system? command))))
+                                 (if directory
+                                     (with-directory directory (lambda () (apply system? command)))
+                                     (apply system? command))))
       (raise run-singleton-failure))))
 
 (define union '())
@@ -170,11 +170,11 @@
 (define united-available
   (lambda (scheme)
     (if scheme
-	(for-each (lambda (x) (display (cadr x)) (newline))
-		  (filter (lambda (x) (string=? scheme (symbol->string (car x))))
-			  union))
-	(for-each (lambda (x) (display x) (newline))
-		  (delete-duplicates (map car union))))))
+        (for-each (lambda (x) (display (cadr x)) (newline))
+                  (filter (lambda (x) (string=? scheme (symbol->string (car x))))
+                          union))
+        (for-each (lambda (x) (display x) (newline))
+                  (delete-duplicates (map car union))))))
 
 (define worker-count
   (lambda ()
@@ -200,25 +200,25 @@
     (display (string-append "* Installing chibi @ " work "\n"))
 
     (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+           (delete-file-hierarchy work))
     (create-directory* work)
 
     ;; TODO: support cloning with full history
     (run work '() "git" "clone" "--depth=1" "https://github.com/ashinn/chibi-scheme/" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/")
-	 '()
-	 "make"
-	 (string-append "-j" (number->string (worker-count)))
-	 (string-append "PREFIX=" work)
-	 "install")))
+         '()
+         "make"
+         (string-append "-j" (number->string (worker-count)))
+         (string-append "PREFIX=" work)
+         "install")))
 
 (unionize 'chibi 'v0.10
-	  `((install . ,(lambda () (chibi-install "0.10")))))
+          `((install . ,(lambda () (chibi-install "0.10")))))
 (unionize 'chibi 'stable
-	  `((install . ,(lambda () (chibi-install "stable")))))
+          `((install . ,(lambda () (chibi-install "stable")))))
 (unionize 'chibi 'latest
-	  `((install . ,(lambda () (chibi-install "HEAD")))))
+          `((install . ,(lambda () (chibi-install "HEAD")))))
 
 (define chez-cisco-install
   (lambda (version)
@@ -227,7 +227,7 @@
     (display (string-append "* Installing chez-cisco @ " work "\n"))
 
     (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+           (delete-file-hierarchy work))
     (create-directory* work)
 
     ;; TODO: support cloning with full history
@@ -237,20 +237,20 @@
          "sh" "configure" "--disable-curses" "--disable-x11" "--threads"
          (string-append "--installprefix=" work))
     (run (string-append work "/src/")
-	 '()
-	 "make"
-	 (string-append "-j" (number->string (worker-count))))
+         '()
+         "make"
+         (string-append "-j" (number->string (worker-count))))
     (run (string-append work "/src/")
-	 '()
-	 "make"
+         '()
+         "make"
          "install")))
 
 (unionize 'chez-cisco 'v9.5.8
-	  `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
+          `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
 (unionize 'chez-cisco 'stable
-	  `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
+          `((install . ,(lambda () (chez-cisco-install "9.5.8")))))
 (unionize 'chez-cisco 'latest
-	  `((install . ,(lambda () (chez-cisco-install "HEAD")))))
+          `((install . ,(lambda () (chez-cisco-install "HEAD")))))
 
 (define guile-install
   (lambda (version)
@@ -258,11 +258,10 @@
 
     (display (string-append "* Installing guile @ " work "\n"))
 
-    (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+    (run (string-append work "../") '() "rm" "-rf" "guile")
     (create-directory* work)
 
-    ;; TODO: support cloning with full history
+    ;; TODO: support cloning with full history with a cli flag
     (run work '() "git" "clone" "--depth=1" "https://git.sv.gnu.org/git/guile.git" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/") '()
@@ -270,16 +269,16 @@
     (run (string-append work "/src/") '()
          "sh" "configure" (string-append "--prefix=" work))
     (run (string-append work "/src/")
-	 '()
-	 "make"
-	 (string-append "-j" (number->string (worker-count))))
+         '()
+         "make"
+         (string-append "-j" (number->string (worker-count))))
     (run (string-append work "/src/")
-	 '()
-	 "make"
+         '()
+         "make"
          "install")))
 
 (unionize 'guile 'latest
-	  `((install . ,(lambda () (guile-install "HEAD")))))
+          `((install . ,(lambda () (guile-install "HEAD")))))
 
 (define gambit-install
   (lambda (version)
@@ -288,26 +287,24 @@
     (display (string-append "* Installing gambit @ " work "\n"))
 
     (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+           (delete-file-hierarchy work))
     (create-directory* work)
 
-    ;; TODO: support cloning with full history
-    ;; (run work '() "git" "clone" "--depth=1" "https://github.com/gambit/gambit/" "src")
-    (run work '() "git" "clone" "--depth=1" "/home/amirouche/src/scheme/gambit/" "src")
+    (run work '() "git" "clone" "https://github.com/gambit/gambit/" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/") '()
          "sh" "configure" (string-append "--prefix=" work))
     (run (string-append work "/src/")
-	 '()
-	 "make"
-	 (string-append "-j" (number->string (worker-count))))
+         '()
+         "make"
+         (string-append "-j" (number->string (worker-count))))
     (run (string-append work "/src/")
-	 '()
-	 "make"
+         '()
+         "make"
          "install")))
 
 (unionize 'gambit 'latest
-	  `((install . ,(lambda () (gambit-install "HEAD")))))
+          `((install . ,(lambda () (gambit-install "HEAD")))))
 
 (define gauche-install
   (lambda (version)
@@ -316,7 +313,7 @@
     (display (string-append "* Installing gauche @ " work "\n"))
 
     (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+           (delete-file-hierarchy work))
     (create-directory* work)
 
     (run work '() "wget" "https://raw.githubusercontent.com/shirok/get-gauche/master/get-gauche.sh")
@@ -330,16 +327,16 @@
          "sh" "configure" (string-append "--prefix=" work))
     (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
       (run (string-append work "/src/")
-	   `((PATH . ,PATH))
-	   "make"
-	   (string-append "-j" (number->string (worker-count)))))
+           `((PATH . ,PATH))
+           "make"
+           (string-append "-j" (number->string (worker-count)))))
     (run (string-append work "/src/")
-	 '()
-	 "make"
+         '()
+         "make"
          "install")))
 
 (unionize 'gauche 'latest
-	  `((install . ,(lambda () (gauche-install "HEAD")))))
+          `((install . ,(lambda () (gauche-install "HEAD")))))
 
 (define chez-racket-install
   (lambda (version)
@@ -348,7 +345,7 @@
     (display (string-append "* Installing chez-racket @ " work "\n"))
 
     (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+           (delete-file-hierarchy work))
     (create-directory* work)
 
     ;; TODO: support cloning with full history
@@ -358,19 +355,19 @@
          "sh" "configure" "--disable-curses" "--disable-x11" "--threads" "--kernelobj"
          (string-append "--installprefix=" work))
     (run (string-append work "/src/")
-	 '()
-	 "make"
-	 (string-append "-j" (number->string (worker-count))))
+         '()
+         "make"
+         (string-append "-j" (number->string (worker-count))))
     (run (string-append work "/src/")
-	 '()
-	 "make"
+         '()
+         "make"
          "install")))
 
 (unionize 'chez-racket 'latest
-	  `((install . ,(lambda () (chez-racket-install "HEAD")))))
+          `((install . ,(lambda () (chez-racket-install "HEAD")))))
 
 (unionize 'chez-racket 'latest
-	  `((install . ,(lambda () (chez-racket-install "HEAD")))))
+          `((install . ,(lambda () (chez-racket-install "HEAD")))))
 
 (define chicken-install
   (lambda (version)
@@ -379,7 +376,7 @@
     (display (string-append "* Installing chicken @ " work "\n"))
 
     (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+           (delete-file-hierarchy work))
     (create-directory* work)
 
     ;; install latest release to be able to compile from git
@@ -396,16 +393,17 @@
     ;; TODO: support cloning with full history
     (run work '() "git" "clone" "--depth=1" "git://code.call-cc.org/chicken-core" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
-    (run (string-append work "/src") '()
+    (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
+      (run (string-append work "/src") `((PATH . ,PATH))
          "make"
          (string-append "PREFIX=" work)
          (string-append "-j" (number->string (worker-count))))
-    (run (string-append work "/src") '()
-         "make" "install"
-         (string-append "PREFIX=" work))))
+      (run (string-append work "/src") '()
+           "make" "install"
+           (string-append "PREFIX=" work)))))
 
 (unionize 'chicken 'latest
-	  `((install . ,(lambda () (chicken-install "HEAD")))))
+          `((install . ,(lambda () (chicken-install "HEAD")))))
 
 (define cyclone-install
   (lambda (version)
@@ -414,7 +412,7 @@
     (display (string-append "* Installing cyclone @ " work "\n"))
 
     (guard (ex (else #f))
-	   (delete-file-hierarchy work))
+           (delete-file-hierarchy work))
     (create-directory* work)
 
     ;; install latest release to be able to compile from git
@@ -445,7 +443,7 @@
            (string-append "PREFIX=" work)))))
 
 (unionize 'chicken 'latest
-	  `((install . ,(lambda () (chicken-install "HEAD")))))
+          `((install . ,(lambda () (chicken-install "HEAD")))))
 
 (define united-prefix-set
   (lambda (directory)
@@ -462,13 +460,13 @@
   (lambda (args)
     (call-with-values (lambda () (command-line-parse* args))
       (lambda (options schemes extra)
-	(when (null? args)
-	  (united-usage)
-	  (exit 1))
-	(let loop ((schemes schemes))
-	  (unless (null? schemes)
-	    (case (string->symbol (car schemes))
-	      ((chibi) (chibi-install "HEAD"))
+        (when (null? args)
+          (united-usage)
+          (exit 1))
+        (let loop ((schemes schemes))
+          (unless (null? schemes)
+            (case (string->symbol (car schemes))
+              ((chibi) (chibi-install "HEAD"))
               ((chez-cisco) (chez-cisco-install "HEAD"))
               ((chez-racket) (chez-racket-install "HEAD"))
               ((chicken) (chicken-install "HEAD"))
@@ -476,10 +474,10 @@
               ((gambit) (gambit-install "HEAD"))
               ((gauche) (gauche-install "HEAD"))
               ((cyclone) (cyclone-install "HEAD")))
-	    (loop (cdr schemes))))))))
+            (loop (cdr schemes))))))))
 
 (unionize 'cyclone 'latest
-	  `((install . ,(lambda () (cyclone-install "HEAD")))))
+          `((install . ,(lambda () (cyclone-install "HEAD")))))
 
 (define accumulator-singleton-flush '(accumulator singleton flush))
 
