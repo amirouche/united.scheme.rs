@@ -10,14 +10,14 @@
 
 (define pk
   (lambda args
-    (write args)
-    (newline)
+    (display ";; ") (write args (current-error-port))
+    (newline (current-error-port))
     (car (reverse args))))
 
 (define call-with-env
   (lambda (env thunk)
     ;; backup variables before overriding
-    (define variables (get-environment-variables))
+    (define original (get-environment-variables))
     ;; override!
     (let loop ((env env))
       (unless (null? env)
@@ -29,12 +29,12 @@
         (let loop ((env env))
           (if (null? env)
               ;; bring back original variables
-              (let loop ((variables variables))
-                (unless (null? variables)
-                  (setenv (caar variables) (cdar variables))
-                  (loop (cdr variables))))
+              (let loop ((original original))
+                (unless (null? original)
+                  (setenv (caar original) (cdar original))
+                  (loop (cdr original))))
               (begin
-                ;; unset
+                ;; unset variables from ENV
                 (unsetenv (symbol->string (caar env)))
                 (loop (cdr env)))))
         (apply values args)))))
@@ -99,43 +99,28 @@
          ((file-directory? string) (values 'directory (make-filepath string)))
          ((file-exists? string)
           (values 'file (make-filepath string)))
-         ;; the first char is a dot, the associated path is neither a
-         ;; file or a directory, hence it is prolly an
-         ;; extension... breaks when the user made a typo in a file or
-         ;; directory name.
-         ((char=? (string-ref string 0) #\.)
-          (values 'extension string))
          (else (values 'unknown string)))))
 
     (let loop ((arguments arguments)
                (directories '())
                (files '())
-               (extensions '())
                (unknowns '()))
       (if (null? arguments)
-          (values directories files extensions unknowns)
+          (values directories files unknowns)
           (call-with-values (lambda () (guess (car arguments)))
             (lambda (type value)
               (case type
                 ((directory) (loop (cdr arguments)
                                    (cons value directories)
                                    files
-                                   extensions
                                    unknowns))
                 ((file) (loop (cdr arguments)
                               directories
                               (cons value files)
-                              extensions
                               unknowns))
-                ((extension) (loop (cdr arguments)
-                                   directories
-                                   files
-                                   (cons value extensions)
-                                   unknowns))
                 ((unknown) (loop (cdr arguments)
                                  directories
                                  files
-                                 extensions
                                  (cons value unknowns))))))))))
 
 (define command-line-parse
@@ -143,8 +128,8 @@
     (call-with-values (lambda () (command-line-parse* arguments))
       (lambda (keywords standalone extra)
         (call-with-values (lambda () (command-line-parse-standalone standalone))
-          (lambda (directories files extensions unknowns)
-            (values keywords directories files extensions unknowns extra)))))))
+          (lambda (directories files unknowns)
+            (values keywords directories files unknowns extra)))))))
 
 (define run-singleton-failure '(run singleton failure))
 
@@ -154,7 +139,6 @@
 
 (define run
   (lambda (directory env . command)
-    ;; (pk command)
     (unless (call-with-env env (lambda ()
                                  (if directory
                                      (with-directory directory (lambda () (apply system? command)))
@@ -186,7 +170,8 @@
 (define united-prefix-ref
   (lambda ()
     (or (get-environment-variable "UNITED_PREFIX")
-        "/opt/united/")))
+        (string-append (get-environment-variable "$HOME")
+                       "/.local/opt/united/"))))
 
 (define united-prefix-display
   (lambda ()
@@ -520,14 +505,12 @@
 (define chibi-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chibi exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "chibi exec expect only one file" files)))
-        (unless (null? extensions)
-          (errors (cons "chibi exec does not support custom extensions" extensions)))
         (unless (null? arguments)
           (errors (cons "chibi exec does not support arguments" arguments)))
 
@@ -536,17 +519,104 @@
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories)))
           (chibi-run (append arguments files extra)))))))
 
+
+(define directory-files*
+  (lambda (directory)
+    (remove (lambda (x) (or (string=? x ".") (string=? x ".."))) (directory-files directory))))
+
+(define ftw
+  (lambda (directory)
+    (let ((paths* (map (lambda (x) (string-append directory "/" x))
+                      (directory-files* directory))))
+      (lambda ()
+        (let loop ((paths paths*))
+          (if (null? paths)
+              (eof-object)
+              (let ((path (car paths)))
+                (if (file-directory? path)
+                    (loop (append (cdr paths)
+                                  (map (lambda (x) (string-append path "/" x))
+                                       (directory-files* path))))
+                    (begin
+                      (set! paths* (cdr paths))
+                      path)))))))))
+
+(define gfilter
+  (lambda (generator predicate?)
+    (lambda ()
+      (let loop ()
+        (let ((object (generator)))
+          (if (eof-object? object)
+              (eof-object)
+              (if (predicate? object)
+                  object
+                  (loop))))))))
+
+(define gappend
+  (lambda (generators)
+    (lambda ()
+      (let loop ()
+        (if (null? generators)
+            (eof-object)
+            (let ((object ((car generators))))
+              (if (eof-object? object)
+                  (begin
+                    (set! generators (cdr generators))
+                  (loop))
+                  object)))))))
+
+
+(define gmap
+  (lambda (proc generator)
+    (lambda ()
+      (let ((object (generator)))
+        (if (eof-object? object)
+            (eof-object)
+            (proc object))))))
+
+(define extract-check-spec
+  (lambda (filepath)
+    (let ((maybe-library (call-with-input-file filepath read)))
+      (pk maybe-library)
+      (match maybe-library
+             (`(define-library ,name ,e ...) "youpi")
+             (else #f)))))
+
+(define make-check-program
+  (lambda (directories)
+    (pk ((gmap extract-check-spec
+               (gfilter (gappend (map ftw directories))
+                        (lambda (x) (string=? (extension x) "sld"))))))))
+
+(define chibi-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "chibi check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "chibi check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "chibi check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "chibi check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "chibi check" errors)
+
+        (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
+              (check.scm (make-check-program directories)))
+          (chibi-run (pk (append arguments (list check.scm)))))))))
+
 (define cyclone-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "cyclone exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "cyclone exec expect only one file" files)))
-        (unless (null? extensions)
-          (errors (cons "cyclone exec does not support custom extensions" extensions)))
         (unless (null? arguments)
           (errors (cons "cyclone exec does not support arguments" arguments)))
 
@@ -566,14 +636,12 @@
 (define gauche-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "gauche exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "gauche exec expect only one file" files)))
-        (unless (null? extensions)
-          (errors (cons "gauche exec does not support custom extensions" extensions)))
         (unless (null? arguments)
           (errors (cons "gauche exec does not support arguments" arguments)))
 
@@ -590,14 +658,12 @@
 (define guile-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "guile exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "guile exec expect only one file" files)))
-        (unless (null? extensions)
-          (errors (cons "guile exec does not support custom extensions" extensions)))
         (unless (null? arguments)
           (errors (cons "guile exec does not support arguments" arguments)))
 
@@ -614,14 +680,12 @@
 (define chibi-repl
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chibi repl does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "chibi repl does not support files" files)))
-        (unless (null? extensions)
-          (errors (cons "chibi repl does not support custom extensions" extensions)))
         (unless (null? arguments)
           (errors (cons "chibi repl does not support arguments" arguments)))
         (unless (null? extra)
@@ -677,6 +741,15 @@
           (substring string index (string-length string))
           (loop (- index 1))))))
 
+(define extension
+  (lambda (string)
+    (let loop ((index (string-length string)))
+      (if (zero? index)
+          ""
+          (if (char=? (string-ref string (- index 1)) #\.)
+              (substring string index (string-length string))
+              (loop (- index 1)))))))
+
 (define basename-without-extension
   (lambda (string)
     (define filename (basename string))
@@ -696,14 +769,12 @@
 (define chicken-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chicken exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "chicken exec expect only one file" files)))
-        (unless (null? extensions)
-          (errors (cons "chicken exec does not support custom extensions" extensions)))
         (unless (null? arguments)
           (errors (cons "chicken exec does not support arguments" arguments)))
 
@@ -803,6 +874,17 @@
       ((chez-cisco) (chez-cisco-exec args))
       ((chez-racket) (chez-racket-exec args)))))
 
+(define united-check
+  (lambda (scheme args)
+    (case (string->symbol scheme)
+      ((gauche) (gauche-exec args))
+      ((guile) (guile-exec args))
+      ((chibi) (chibi-check args))
+      ((chicken) (chicken-exec args))
+      ((cyclone) (cyclone-exec args))
+      ((chez-cisco) (chez-cisco-exec args))
+      ((chez-racket) (chez-racket-exec args)))))
+
 (define chez-run
   (lambda (chez arguments)
     (apply run
@@ -831,7 +913,7 @@
 (define chez-cisco-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chez-cisco exec does not support keywords" keywords)))
@@ -847,10 +929,6 @@
             (set! arguments (cons* "--libdirs"
                                    (string-join directories ":")
                                    arguments)))
-          (unless (null? extensions)
-            (set! arguments (cons* "--libexts"
-                                   (string-join extensions ":")
-                                  arguments)))
           (set! arguments (append arguments (list "--program" (car files))))
 
           (chez-run "chez-cisco" (append arguments extra)))))))
@@ -858,7 +936,7 @@
 (define chez-racket-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files extensions arguments extra)
+      (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chez-racket exec does not support keywords" keywords)))
@@ -873,11 +951,6 @@
             (set! arguments (cons* "--libdirs"
                                    (string-join directories ":")
                                    arguments)))
-          (unless (null? extensions)
-            (set! arguments (cons* "--libexts"
-                                   (string-join extensions ":")
-                                   arguments)))
-
           (set! arguments (append arguments (list "--program" (car files))))
 
           (chez-run "chez-racket" (append arguments extra)))))))
@@ -888,6 +961,7 @@
  (("install" . args) (united-install args))
  (("prefix" directory) (united-prefix-set directory))
  (("prefix") (united-prefix-display))
+ ((scheme "check" . args) (united-check scheme args))
  ((scheme "compile" . args) (united-compile scheme args))
  ((scheme "exec" . args) (united-exec scheme args))
  ((scheme "repl" . args) (united-repl scheme args))

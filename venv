@@ -4,19 +4,17 @@ set -e
 # set -x
 
 if test -d "$(pwd)/.git"; then
-    if [ ! "$SCHEME_UNITED_VENV" ]; then
-        export SCHEME_UNITED_VENV=yes
-        # TODO: make configurable
-        export SCHEME_UNITED_CORE_COUNT=$(nproc --ignore=1)
+    if [ ! "$UNITED_VENV" ]; then
+        export UNITED_VENV=yes
+        export UNITED_WORKER_COUNT=$(nproc --ignore=1)
+        export PATH="$(pwd):$PATH"
         if [ "x$1" != "x" ]; then
-            export SCHEME_UNITED_PREFIX=$1
+            export UNITED_PREFIX=$1
             shift
         else
-            export SCHEME_UNITED_PREFIX=$(pwd)
+            export UNITED_PREFIX=$(pwd)/local/
         fi
-        export PATH="$SCHEME_UNITED_PREFIX/bin:$PATH"
         if [ ! "$@" ]; then
-            export PS1="(scheme-united) $PS1"
             echo ""
             echo "  🚀 🛰  Entering scheme-united environment 🌝 🌱"
             echo ""
