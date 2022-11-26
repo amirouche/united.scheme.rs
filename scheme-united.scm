@@ -2,6 +2,7 @@
 (import (scheme small))
 (import (scheme list))
 (import (scheme process-context))
+(import (only (srfi 130) string-prefix?))
 (import (chibi process))
 (import (chibi match))
 (import (chibi filesystem))
@@ -10,7 +11,8 @@
 
 (define pk
   (lambda args
-    (display ";; ") (write args (current-error-port))
+    (display ";; " (current-error-port))
+    (write args (current-error-port))
     (newline (current-error-port))
     (car (reverse args))))
 
@@ -385,7 +387,15 @@
          (string-append "-j" (number->string (worker-count))))
       (run (string-append work "/src") '()
            "make" "install"
-           (string-append "PREFIX=" work)))))
+           (string-append "PREFIX=" work))
+      (run #f
+           '()
+           (string-append (united-prefix-ref) "/chicken/bin/chicken-install")
+           "csm")
+      (run #f
+           '()
+           (string-append (united-prefix-ref) "/chicken/bin/chicken-install")
+           "r7rs"))))
 
 (unionize 'chicken 'latest
           `((install . ,(lambda () (chicken-install "HEAD")))))
@@ -576,17 +586,98 @@
 
 (define extract-check-spec
   (lambda (filepath)
+
+    (define check?
+      (lambda (spec)
+        ;; XXX: guard against spec that is not just a symbol, TODO:
+        ;; support export with rename?
+        (guard (ex (else #f))
+               (string-prefix? "~check-" (symbol->string spec)))))
+
+    (define extract-checks
+      (lambda (exp)
+        (match exp
+               (('export e ...) (filter check? e))
+               (else '()))))
+
     (let ((maybe-library (call-with-input-file filepath read)))
-      (pk maybe-library)
       (match maybe-library
-             (`(define-library ,name ,e ...) "youpi")
+             (('define-library name e ...)
+              (cons name (list 'quasiquote (map (lambda (x) (cons (list name x) (list 'unquote x)))
+                                                (append-map extract-checks e)))))
              (else #f)))))
 
+(define generator->reversed-list
+  (lambda (generator)
+    (let loop ((out '()))
+      (let ((object (generator)))
+        (if (eof-object? object)
+            out
+            (loop (cons object out)))))))
+
 (define make-check-program
-  (lambda (directories)
-    (pk ((gmap extract-check-spec
-               (gfilter (gappend (map ftw directories))
-                        (lambda (x) (string=? (extension x) "sld"))))))))
+  (lambda (scheme directories)
+    (let* ((libraries+checks (generator->reversed-list
+                              (gmap extract-check-spec
+                                    (gfilter (gappend (map ftw directories))
+                                             (lambda (x) (string=? (extension x) "sld"))))))
+           (program `((import (scheme base))
+                      (import ,@(map car libraries+checks))
+
+                      (define checks ,@(map cdr libraries+checks))
+
+                      (display "* ")
+                      (display ,scheme)
+                      (newline)
+
+                      (let loop ((checks checks))
+                        (unless (null? checks)
+                          (display "** ")
+                          (display (caar checks))
+                          (newline)
+                          ((cdar checks))
+                          (loop (cdr checks)))))))
+
+      (call-with-output-file "checks.scm"
+        (lambda (port)
+          (let loop ((program program))
+            (unless (null? program)
+              (write (car program) port)
+              (loop (cdr program))))))
+
+      "checks.scm")))
+
+(define make-chez-check-program
+  (lambda (scheme directories)
+    (let* ((libraries+checks (generator->reversed-list
+                              (gmap extract-check-spec
+                                    (gfilter (gappend (map ftw directories))
+                                             (lambda (x) (string=? (extension x) "sld"))))))
+           (program `((import (chezscheme))
+                      (import ,@(map car libraries+checks))
+
+                      (define checks ,@(map cdr libraries+checks))
+
+                      (display "* ")
+                      (display ,scheme)
+                      (newline)
+
+                      (let loop ((checks checks))
+                        (unless (null? checks)
+                          (display "** ")
+                          (display (caar checks))
+                          (newline)
+                          ((cdar checks))
+                          (loop (cdr checks)))))))
+
+      (call-with-output-file "checks.scm"
+        (lambda (port)
+          (let loop ((program program))
+            (unless (null? program)
+              (write (car program) port)
+              (loop (cdr program))))))
+
+      "checks.scm")))
 
 (define chibi-check
   (lambda (arguments)
@@ -605,8 +696,148 @@
         (maybe-display-errors-and-exit "chibi check" errors)
 
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
-              (check.scm (make-check-program directories)))
-          (chibi-run (pk (append arguments (list check.scm)))))))))
+              (check.scm (make-check-program "chibi" directories)))
+          (chibi-run (append arguments (list check.scm))))))))
+
+(define gauche-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "gauche check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "gauche check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "gauche check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "gauche check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "gauche check" errors)
+
+        (let ((check.scm (make-check-program "gambit" directories)))
+          (gauche-exec (append directories (list check.scm))))))))
+
+;; (define gambit-check
+;;   (lambda (arguments)
+;;     (call-with-values (lambda () (command-line-parse arguments))
+;;       (lambda (keywords directories files arguments extra)
+;;         (define errors (make-accumulator))
+;;         (unless (null? keywords)
+;;           (errors (cons "gambit check does not support keywords" keywords)))
+;;         (unless (null? files)
+;;           (errors (cons "gambit check does not support files" files)))
+;;         (unless (null? arguments)
+;;           (errors (cons "gambit check does not support files" arguments)))
+;;         (unless (null? extra)
+;;           (errors (cons "gambit check does not support extra, as of yet..." extra)))
+
+;;         (maybe-display-errors-and-exit "gambit check" errors)
+
+;;         (let ((check.scm (make-check-program "gambit" directories)))
+;;           (gambit-exec (append directories (list check.scm))))))))
+
+(define guile-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "guile check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "guile check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "guile check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "guile check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "guile check" errors)
+
+        (let ((check.scm (make-check-program "guile" directories)))
+          (guile-exec (append directories (list check.scm))))))))
+
+(define cyclone-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "cyclone check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "cyclone check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "cyclone check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "cyclone check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "cyclone check" errors)
+
+        (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
+              (check.scm (make-check-program "cyclone" directories)))
+          (apply run #f
+                 '()
+                 (string-append (united-prefix-ref) "/cyclone/bin/cyclone")
+                 (append arguments (list "checks.scm")))
+          (run #f
+               '()
+               "checks"))))))
+
+(define chez-racket-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "chez-racket check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "chez-racket check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "chez-racket check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "chez-racket check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "chez-racket check" errors)
+
+        (let ((check.scm (make-chez-check-program "chez-racket" directories)))
+          (chez-racket-exec (append directories (list check.scm))))))))
+
+(define chez-cisco-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "chez-cisco check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "chez-cisco check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "chez-cisco check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "chez-cisco check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "chez-cisco check" errors)
+
+        (let ((check.scm (make-chez-check-program "chez-cisco" directories)))
+          (chez-cisco-exec (append directories (list check.scm))))))))
+
+(define chicken-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "chicken check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "chicken check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "chicken check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "chicken check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "chicken check" errors)
+
+        (let ((check.scm  (make-check-program "cyclone" directories)))
+          (chicken-exec (append directories (list "checks.scm"))))))))
 
 (define cyclone-exec
   (lambda (arguments)
@@ -877,13 +1108,14 @@
 (define united-check
   (lambda (scheme args)
     (case (string->symbol scheme)
-      ((gauche) (gauche-exec args))
-      ((guile) (guile-exec args))
       ((chibi) (chibi-check args))
-      ((chicken) (chicken-exec args))
-      ((cyclone) (cyclone-exec args))
-      ((chez-cisco) (chez-cisco-exec args))
-      ((chez-racket) (chez-racket-exec args)))))
+      ((gauche) (gauche-checkq args))
+      ((gambit) (gambit-check args))
+      ((guile) (guile-check args))
+      ((chez-cisco) (chez-cisco-check args))
+      ((chicken) (chicken-check args))
+      ((cyclone) (cyclone-check args))
+      ((chez-racket) (chez-racket-check args)))))
 
 (define chez-run
   (lambda (chez arguments)
@@ -935,6 +1167,7 @@
 
 (define chez-racket-exec
   (lambda (arguments)
+    (pk arguments)
     (call-with-values (lambda () (command-line-parse arguments))
       (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))

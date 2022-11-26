@@ -1,10 +1,11 @@
 (define-library (united base)
-  (export display newline command-line)
+  (export display newline command-line
+
+          ~check-united-base-000
+          ~check-united-base-001)
   (import (scheme base)
           (scheme write)
           (scheme process-context))
 
-
-  (define ~check-000
-    (lambda ()
-      #t)))
+  (begin
+    (include "body.scm")))
