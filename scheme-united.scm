@@ -83,12 +83,13 @@
 (define united-usage
   (lambda ()
     (display "
+  scheme-united SCHEME check [DIRECTORY ...]
+  scheme-united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
+  scheme-united SCHEME repl [DIRECTORY ...]
+  scheme-united SCHEME version
   scheme-united available [SCHEME]
   scheme-united install [--latest|--stable|--version=VERSION] SCHEME ...
   scheme-united prefix [DIRECTORY]
-  scheme-united SCHEME repl [DIRECTORY ...]
-  scheme-united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
-  scheme-united SCHEME version
 
 ")))
 
@@ -696,8 +697,8 @@
         (maybe-display-errors-and-exit "chibi check" errors)
 
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
-              (check.scm (make-check-program "chibi" directories)))
-          (chibi-run (append arguments (list check.scm))))))))
+              (checks.scm (make-check-program "chibi" directories)))
+          (chibi-run (append arguments (list checks.scm))))))))
 
 (define gauche-check
   (lambda (arguments)
@@ -715,8 +716,8 @@
 
         (maybe-display-errors-and-exit "gauche check" errors)
 
-        (let ((check.scm (make-check-program "gambit" directories)))
-          (gauche-exec (append directories (list check.scm))))))))
+        (let ((checks.scm (make-check-program "gauche" directories)))
+          (gauche-exec (append directories (list checks.scm))))))))
 
 ;; (define gambit-check
 ;;   (lambda (arguments)
@@ -734,8 +735,8 @@
 
 ;;         (maybe-display-errors-and-exit "gambit check" errors)
 
-;;         (let ((check.scm (make-check-program "gambit" directories)))
-;;           (gambit-exec (append directories (list check.scm))))))))
+;;         (let ((checks.scm (make-check-program "gambit" directories)))
+;;           (gambit-exec (append directories (list checks.scm))))))))
 
 (define guile-check
   (lambda (arguments)
@@ -753,8 +754,8 @@
 
         (maybe-display-errors-and-exit "guile check" errors)
 
-        (let ((check.scm (make-check-program "guile" directories)))
-          (guile-exec (append directories (list check.scm))))))))
+        (let ((checks.scm (make-check-program "guile" directories)))
+          (guile-exec (append directories (list checks.scm))))))))
 
 (define cyclone-check
   (lambda (arguments)
@@ -773,7 +774,7 @@
         (maybe-display-errors-and-exit "cyclone check" errors)
 
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
-              (check.scm (make-check-program "cyclone" directories)))
+              (checks.scm (make-check-program "cyclone" directories)))
           (apply run #f
                  '()
                  (string-append (united-prefix-ref) "/cyclone/bin/cyclone")
@@ -798,8 +799,8 @@
 
         (maybe-display-errors-and-exit "chez-racket check" errors)
 
-        (let ((check.scm (make-chez-check-program "chez-racket" directories)))
-          (chez-racket-exec (append directories (list check.scm))))))))
+        (let ((checks.scm (make-chez-check-program "chez-racket" directories)))
+          (chez-racket-exec (append directories (list checks.scm))))))))
 
 (define chez-cisco-check
   (lambda (arguments)
@@ -817,8 +818,8 @@
 
         (maybe-display-errors-and-exit "chez-cisco check" errors)
 
-        (let ((check.scm (make-chez-check-program "chez-cisco" directories)))
-          (chez-cisco-exec (append directories (list check.scm))))))))
+        (let ((checks.scm (make-chez-check-program "chez-cisco" directories)))
+          (chez-cisco-exec (append directories (list checks.scm))))))))
 
 (define chicken-check
   (lambda (arguments)
@@ -836,7 +837,7 @@
 
         (maybe-display-errors-and-exit "chicken check" errors)
 
-        (let ((check.scm  (make-check-program "cyclone" directories)))
+        (let ((checks.scm  (make-check-program "chicken" directories)))
           (chicken-exec (append directories (list "checks.scm"))))))))
 
 (define cyclone-exec
@@ -1054,7 +1055,7 @@
     (apply run
            #f
            '()
-           (string-append (united-prefix-ref) "/gauche/bin/repl")
+           (string-append (united-prefix-ref) "/gauche/bin/gosh")
            (list "-r7"))))
 
 (define cyclone-repl
@@ -1109,8 +1110,8 @@
   (lambda (scheme args)
     (case (string->symbol scheme)
       ((chibi) (chibi-check args))
-      ((gauche) (gauche-checkq args))
-      ((gambit) (gambit-check args))
+      ((gauche) (gauche-check args))
+      ;; ((gambit) (gambit-check args))
       ((guile) (guile-check args))
       ((chez-cisco) (chez-cisco-check args))
       ((chicken) (chicken-check args))
@@ -1167,7 +1168,6 @@
 
 (define chez-racket-exec
   (lambda (arguments)
-    (pk arguments)
     (call-with-values (lambda () (command-line-parse arguments))
       (lambda (keywords directories files arguments extra)
         (define errors (make-accumulator))
