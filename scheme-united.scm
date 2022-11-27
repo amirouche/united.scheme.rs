@@ -142,6 +142,7 @@
 
 (define run
   (lambda (directory env . command)
+    (pk command)
     (unless (call-with-env env (lambda ()
                                  (if directory
                                      (with-directory directory (lambda () (apply system? command)))

@@ -8,5 +8,9 @@
 ** gsc compiles but do not run
 * gauche
 * guile
-* larceny
+
+* larceny (binary)
 * sagittarius
+* racket (binary)
+* loko (binary)
+* gerbil
