@@ -87,7 +87,7 @@
   scheme-united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
   scheme-united SCHEME repl [DIRECTORY ...]
   scheme-united SCHEME version
-  scheme-united available [SCHEME]
+  scheme-united available
   scheme-united install [--latest|--stable|--version=VERSION] SCHEME ...
   scheme-united prefix [DIRECTORY]
 
@@ -142,7 +142,7 @@
 
 (define run
   (lambda (directory env . command)
-    (pk command)
+    (pk env command)
     (unless (call-with-env env (lambda ()
                                  (if directory
                                      (with-directory directory (lambda () (apply system? command)))
@@ -294,6 +294,67 @@
 
 (unionize 'gambit 'latest
           `((install . ,(lambda () (gambit-install "HEAD")))))
+
+(define racket-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/racket/"))
+
+    (display (string-append "* Installing racket @ " work "\n"))
+
+    (guard (ex (else #f))
+           (delete-file-hierarchy work))
+    (create-directory* work)
+
+    (run work '() "git" "clone" "--depth=1" "https://github.com/racket/racket/" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/")
+         '()
+         "make"
+         (string-append "-j" (number->string (worker-count)))
+         "unix-style"
+         (string-append "PREFIX=" work))
+    (run (string-append work "/bin/")
+         '()
+         "./raco"
+         "pkg" "install" "--batch" "--deps" "search-auto" "--scope" "installation" "r7rs")))
+
+(unionize 'racket 'latest
+          `((install . ,(lambda () (racket-install "HEAD")))))
+
+(define gerbil-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/gerbil/"))
+    (define gambit (string-append (united-prefix-ref) "/gambit/"))
+
+    (display (string-append "* Installing gerbil @ " work "\n"))
+
+    (guard (ex (else #f))
+           (delete-file-hierarchy work))
+    (create-directory* work)
+
+    (run work '() "git" "clone" "https://github.com/vyzo/gerbil/" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (let ((PATH (string-append gambit "/bin/:" (get-environment-variable "PATH"))))
+      (run (string-append work "/src/src/")
+           `((GERBIL_HOME . ,work)
+             (GERBIL_BUILD_CORES . ,(number->string (worker-count)))
+             (PATH . ,PATH))
+           "gsi-script" "configure"
+           (string-append "--prefix=" work)
+           (string-append "--with-gambit=" gambit))
+      (run (string-append work "/src/src/")
+           `((GERBIL_HOME . ,work)
+             (GERBIL_BUILD_CORES . ,(number->string (worker-count)))
+             (PATH . ,PATH))
+           "sh" "build.sh")
+      (run (string-append work "/src/src/")
+           `((GERBIL_HOME . ,work)
+             (GERBIL_BUILD_CORES . ,(number->string (worker-count)))
+             (PATH . ,PATH))
+           "gsi-script" "install"))))
+
+;; (unionize 'gerbil 'latest
+;;           `((install . ,(lambda () (gerbil-install "HEAD")))))
 
 (define gauche-install
   (lambda (version)
@@ -469,6 +530,8 @@
               ((chicken) (chicken-install "HEAD"))
               ((guile) (guile-install "HEAD"))
               ((gambit) (gambit-install "HEAD"))
+              ((racket) (racket-install "HEAD"))
+              ((gerbil) (gerbil-install "HEAD"))
               ((gauche) (gauche-install "HEAD"))
               ((cyclone) (cyclone-install "HEAD")))
             (loop (cdr schemes))))))))
@@ -720,24 +783,62 @@
         (let ((checks.scm (make-check-program "gauche" directories)))
           (gauche-exec (append directories (list checks.scm))))))))
 
-;; (define gambit-check
-;;   (lambda (arguments)
-;;     (call-with-values (lambda () (command-line-parse arguments))
-;;       (lambda (keywords directories files arguments extra)
-;;         (define errors (make-accumulator))
-;;         (unless (null? keywords)
-;;           (errors (cons "gambit check does not support keywords" keywords)))
-;;         (unless (null? files)
-;;           (errors (cons "gambit check does not support files" files)))
-;;         (unless (null? arguments)
-;;           (errors (cons "gambit check does not support files" arguments)))
-;;         (unless (null? extra)
-;;           (errors (cons "gambit check does not support extra, as of yet..." extra)))
+(define gambit-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "gambit check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "gambit check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "gambit check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "gambit check does not support extra, as of yet..." extra)))
 
-;;         (maybe-display-errors-and-exit "gambit check" errors)
+        (maybe-display-errors-and-exit "gambit check" errors)
 
-;;         (let ((checks.scm (make-check-program "gambit" directories)))
-;;           (gambit-exec (append directories (list checks.scm))))))))
+        (let ((checks.scm (make-check-program "gambit" directories)))
+          (gambit-exec (append directories (list checks.scm))))))))
+
+(define racket-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "racket check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "racket check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "racket check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "racket check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "racket check" errors)
+
+        (let ((checks.scm (make-check-program "racket" directories)))
+          (racket-exec (append directories (list checks.scm))))))))
+
+(define gerbil-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "gerbil check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "gerbil check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "gerbil check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "gerbil check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "gerbil check" errors)
+
+        (let ((checks.scm (make-check-program "gerbil" directories)))
+          (gerbil-exec (append directories (list checks.scm))))))))
 
 (define guile-check
   (lambda (arguments)
@@ -866,6 +967,113 @@
                  (string-append "./" a.out)
                  extra))))))
 
+(define gambit-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+
+        (define make-search-option
+          (lambda (directories)
+            (string-append "-:" (string-join
+                                 (map (lambda (x) (string-append "search=" x))
+                                      directories)
+                                 ","))))
+
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "gambit exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "gambit exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "gambit exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "gambit exec" errors)
+
+        (let* ((a.out (basename-without-extension (car files)))
+               (arguments (append (list "-:r7rs" "-exe" "-o" a.out "-nopreload") directories files)))
+          (apply run #f
+                 '()
+                 (string-append (united-prefix-ref) "/gambit/bin/gsc")
+                 arguments)
+          (apply run #f '() (string-append "./" a.out) (make-search-option directories) extra))))))
+
+(define racket-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "racket exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "racket exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "racket exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "racket exec" errors)
+
+        (let ((search (append-map (lambda (x) (list "-S" x)) directories )))
+          (apply run #f
+                 '()
+                 (string-append (united-prefix-ref) "/racket/bin/racket")
+                 "-I" "r7rs"
+                 (append search (list "-f") files extra)))))))
+
+(define gerbil-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+
+        (define make-search-option
+          (lambda (directories)
+            (string-append "-:" (string-join
+                                 (map (lambda (x) (string-append "search=" x))
+                                      directories)
+                                 ","))))
+
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "gerbil exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "gerbil exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "gerbil exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "gerbil exec" errors)
+
+        (apply run #f
+               `((GERBIL_LOADPATH . ,(string-join directories ":")))
+               (string-append (united-prefix-ref) "/gerbil/bin/gxi")
+               "--lang" "r7rs" files)))))
+
+(define gambit-repl
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "gambit repl does not support keywords" keywords)))
+        (unless (zero? (length files))
+          (errors (cons "gambit repl expect zero files" files)))
+        (unless (null? arguments)
+          (errors (cons "gambit repl does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "gambit repl" errors)
+
+        (let* ((arguments (cons "-:r7rs" directories)))
+          (apply run #f
+                 '()
+                 (string-append (united-prefix-ref) "/gambit/bin/gsi")
+                 arguments))))))
+
+
+(define gambit-version
+  (lambda ()
+    (run #f
+         '()
+         (string-append (united-prefix-ref) "/gambit/bin/gsc")
+         "-v")))
+
 (define gauche-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
@@ -958,6 +1166,7 @@
       ((guile) (guile-repl))
       ((gauche) (gauche-repl))
       ((cyclone) (cyclone-repl))
+      ((gambit) (gambit-repl args))
       ((chicken) (chicken-repl)))))
 
 (define directory-path
@@ -1079,6 +1288,7 @@
   (lambda (scheme)
     (case (string->symbol scheme)
       ((chibi) (chibi-version))
+      ((gambit) (gambit-version))
       ((chez-cisco) (chez-cisco-version))
       ((chez-racket) (chez-racket-version))
       ((cyclone) (cyclone-version))
@@ -1099,8 +1309,11 @@
 (define united-exec
   (lambda (scheme args)
     (case (string->symbol scheme)
+      ((racket) (racket-exec args))
       ((gauche) (gauche-exec args))
       ((guile) (guile-exec args))
+      ((gambit) (gambit-exec args))
+      ((gerbil) (gerbil-exec args))
       ((chibi) (chibi-exec args))
       ((chicken) (chicken-exec args))
       ((cyclone) (cyclone-exec args))
@@ -1112,7 +1325,9 @@
     (case (string->symbol scheme)
       ((chibi) (chibi-check args))
       ((gauche) (gauche-check args))
-      ;; ((gambit) (gambit-check args))
+      ((gambit) (gambit-check args))
+      ((racket) (racket-check args))
+      ((gerbil) (gerbil-check args))
       ((guile) (guile-check args))
       ((chez-cisco) (chez-cisco-check args))
       ((chicken) (chicken-check args))
@@ -1190,7 +1405,7 @@
           (chez-run "chez-racket" (append arguments extra)))))))
 
 (match (cdr (command-line))
- (("available" scheme) (united-available scheme))
+ #;(("available" scheme) (united-available scheme))
  (("available") (united-available #f))
  (("install" . args) (united-install args))
  (("prefix" directory) (united-prefix-set directory))

@@ -1,3 +1,5 @@
+(define magic-number 13372006)
+
 (define ~check-united-base-000
   (lambda ()
     (display "youhou one\n")
