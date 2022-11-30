@@ -209,6 +209,31 @@
 (unionize 'chibi 'latest
           `((install . ,(lambda () (chibi-install "HEAD")))))
 
+(define stklos-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/stklos/"))
+
+    (display (string-append "* Installing stklos @ " work "\n"))
+
+    (guard (ex (else #f))
+           (delete-file-hierarchy work))
+    (create-directory* work)
+
+    (run work '() "git" "clone" "--depth=1" "https://github.com/egallesio/STklos" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/") '()
+         "bash" "configure" (string-append "--prefix=" work))
+    (run (string-append work "/src/")
+         '()
+         "make")
+    (run (string-append work "/src/")
+         '()
+         "make"
+         "install")))
+
+(unionize 'stklos 'latest
+          `((install . ,(lambda () (stklos-install "HEAD")))))
+
 (define chez-cisco-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/chez-cisco/"))
@@ -419,6 +444,32 @@
 (unionize 'chez-racket 'latest
           `((install . ,(lambda () (chez-racket-install "HEAD")))))
 
+(define sagittarius-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/sagittarius/"))
+
+    (display (string-append "* Installing sagittarius @ " work "\n"))
+
+    (guard (ex (else #f))
+           (delete-file-hierarchy work))
+    (create-directory* work)
+
+    (run work '() "wget" "https://bitbucket.org/ktakashi/sagittarius-scheme/downloads/sagittarius-0.9.9.tar.gz")
+    (run work '() "tar" "xf" "sagittarius-0.9.9.tar.gz")
+    (run (string-append work "/sagittarius-0.9.9") '()
+         "cmake"
+         "."
+         (string-append "-DCMAKE_INSTALL_PREFIX=" work))
+    (run (string-append work "/sagittarius-0.9.9") '()
+         "make"
+         (string-append "-j" (number->string (worker-count))))
+    (run (string-append work "/sagittarius-0.9.9") '()
+         "make"
+         "install")))
+
+(unionize 'sagittarius 'latest
+          `((install . ,(lambda () (sagittarius-install "HEAD")))))
+
 (define chicken-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/chicken/"))
@@ -460,8 +511,27 @@
            (string-append (united-prefix-ref) "/chicken/bin/chicken-install")
            "r7rs"))))
 
+
 (unionize 'chicken 'latest
           `((install . ,(lambda () (chicken-install "HEAD")))))
+
+(define loko-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/loko/"))
+
+    (display (string-append "* Installing loko @ " work "\n"))
+
+    (guard (ex (else #f))
+           (delete-file-hierarchy work))
+    (create-directory* work)
+
+    (run work '() "git" "clone" "https://scheme.fail/git/loko.git/" "src")
+    (run (string-append work "/src/") '() "make"
+         (string-append "PREFIX=" work))
+    (run (string-append work "/src/") '() "make" (string-append "PREFIX=" work) "install")))
+
+(unionize 'loko 'latest
+          `((install . ,(lambda () (loko-install "HEAD")))))
 
 (define cyclone-install
   (lambda (version)
@@ -500,9 +570,6 @@
            "make" "install"
            (string-append "PREFIX=" work)))))
 
-(unionize 'chicken 'latest
-          `((install . ,(lambda () (chicken-install "HEAD")))))
-
 (define united-prefix-set
   (lambda (directory)
     (run #f `((UNITED_PREFIX . ,directory)) "sh" "-c" "$SHELL")))
@@ -525,6 +592,7 @@
           (unless (null? schemes)
             (case (string->symbol (car schemes))
               ((chibi) (chibi-install "HEAD"))
+              ((stklos) (stklos-install "HEAD"))
               ((chez-cisco) (chez-cisco-install "HEAD"))
               ((chez-racket) (chez-racket-install "HEAD"))
               ((chicken) (chicken-install "HEAD"))
@@ -533,6 +601,8 @@
               ((racket) (racket-install "HEAD"))
               ((gerbil) (gerbil-install "HEAD"))
               ((gauche) (gauche-install "HEAD"))
+              ((loko) (loko-install "HEAD"))
+              ((sagittarius) (sagittarius-install "HEAD"))
               ((cyclone) (cyclone-install "HEAD")))
             (loop (cdr schemes))))))))
 
@@ -695,13 +765,47 @@
                       (display ,scheme)
                       (newline)
 
-                      (let loop ((checks checks))
-                        (unless (null? checks)
-                          (display "** ")
-                          (display (caar checks))
-                          (newline)
-                          ((cdar checks))
-                          (loop (cdr checks)))))))
+                      (define (check-one check)
+                        (display "** ")
+                        (display (car check))
+                        (newline)
+                        ((cdr check)))
+
+                      (for-each check-one checks))))
+
+      (call-with-output-file "checks.scm"
+        (lambda (port)
+          (let loop ((program program))
+            (unless (null? program)
+              (write (car program) port)
+              (loop (cdr program))))))
+
+      "checks.scm")))
+
+(define make-stklos-check-program
+  (lambda (scheme directories)
+    (let* ((libraries+checks (generator->reversed-list
+                              (gmap extract-check-spec
+                                    (gfilter (gappend (map ftw directories))
+                                             (lambda (x) (string=? (extension x) "sld"))))))
+           (program `((import ,@(map car libraries+checks))
+                      ;; XXX: Do not import (scheme base). Otherwise
+                      ;; STKlos will shrug one way to fix it portably:
+                      ;; nly import ~check procedures that are
+                      ;; necessary.
+                      (define checks ,@(map cdr libraries+checks))
+
+                      (display "* ")
+                      (display ,scheme)
+                      (newline)
+
+                      (define (check-one check)
+                        (display "** ")
+                        (display (car check))
+                        (newline)
+                        ((cdr check)))
+
+                      (for-each check-one checks))))
 
       (call-with-output-file "checks.scm"
         (lambda (port)
@@ -727,13 +831,13 @@
                       (display ,scheme)
                       (newline)
 
-                      (let loop ((checks checks))
-                        (unless (null? checks)
-                          (display "** ")
-                          (display (caar checks))
-                          (newline)
-                          ((cdar checks))
-                          (loop (cdr checks)))))))
+                      (define (check-one check)
+                        (display "** ")
+                        (display (car check))
+                        (newline)
+                        ((cdr check)))
+
+                      (for-each check-one checks))))
 
       (call-with-output-file "checks.scm"
         (lambda (port)
@@ -763,6 +867,25 @@
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
               (checks.scm (make-check-program "chibi" directories)))
           (chibi-run (append arguments (list checks.scm))))))))
+
+(define stklos-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "stklos check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "stklos check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "stklos check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "stklos check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "stklos check" errors)
+
+        (let ((checks.scm (make-stklos-check-program "stklos" directories)))
+          (stklos-exec (append directories (list checks.scm))))))))
 
 (define gauche-check
   (lambda (arguments)
@@ -801,6 +924,25 @@
 
         (let ((checks.scm (make-check-program "gambit" directories)))
           (gambit-exec (append directories (list checks.scm))))))))
+
+(define loko-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "loko check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "loko check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "loko check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "loko check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "loko check" errors)
+
+        (let ((checks.scm (make-check-program "loko" directories)))
+          (loko-exec (append directories (list checks.scm))))))))
 
 (define racket-check
   (lambda (arguments)
@@ -942,6 +1084,25 @@
         (let ((checks.scm  (make-check-program "chicken" directories)))
           (chicken-exec (append directories (list "checks.scm"))))))))
 
+(define sagittarius-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "sagittarius check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "sagittarius check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "sagittarius check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "sagittarius check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "sagittarius check" errors)
+
+        (let ((checks.scm  (make-check-program "sagittarius" directories)))
+          (sagittarius-exec (append directories (list "checks.scm"))))))))
+
 (define cyclone-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
@@ -1066,7 +1227,6 @@
                  (string-append (united-prefix-ref) "/gambit/bin/gsi")
                  arguments))))))
 
-
 (define gambit-version
   (lambda ()
     (run #f
@@ -1095,6 +1255,28 @@
                  (string-append (united-prefix-ref) "/gauche/bin/gosh")
                  "-r7"
                  (append arguments files extra)))))))
+
+(define stklos-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "stklos exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "stklos exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "stklos exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "stklos exec" errors)
+
+        (let ((arguments (append-map (lambda (x) (list "-I" x)) directories)))
+          (apply run
+                 #f
+                 '()
+                 (string-append (united-prefix-ref) "/stklos/bin/stklos")
+
+                 (append arguments (list "-l" "init.stk") (cons "-f" files) extra)))))))
 
 (define guile-exec
   (lambda (arguments)
@@ -1200,6 +1382,13 @@
           (substring filename 0 (- index 1))
           (loop (- index 1))))))
 
+(define path-without-extension
+  (lambda (filename)
+    (let loop ((index (string-length filename)))
+      (if (char=? (string-ref filename (- index 1)) #\.)
+          (substring filename 0 (- index 1))
+          (loop (- index 1))))))
+
 (define chibi-run
    (lambda (arguments)
      (apply run
@@ -1235,6 +1424,55 @@
                '()
                (string-append "./" (basename-without-extension (car files)))
                extra)))))
+
+(define loko-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "loko exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "loko exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "loko exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "loko exec" errors)
+
+        (let ((LOKO_LIBRARY_PATH (string-join directories ":")))
+          (apply run
+                 #f
+                 `((LOKO_LIBRARY_PATH . ,LOKO_LIBRARY_PATH))
+                 (string-append (united-prefix-ref) "/loko/bin/loko")
+                 "-std=r7rs"
+                 "--compile"
+                 files)
+          (apply run
+                 #f
+                 '()
+                 (path-without-extension (make-filepath (car files)))
+                 extra))))))
+
+(define sagittarius-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "sagittarius exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "sagittarius exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "sagittarius exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "sagittarius exec" errors)
+
+        (apply run
+               #f
+               '()
+               (string-append (united-prefix-ref) "/sagittarius/bin/sagittarius")
+               "-r7"
+               (append (map (lambda (x) (string-append "-L" x)) directories) files extra))))))
 
 (define chicken-version
   (lambda ()
@@ -1309,13 +1547,16 @@
 (define united-exec
   (lambda (scheme args)
     (case (string->symbol scheme)
+      ((stklos) (stklos-exec args))
       ((racket) (racket-exec args))
       ((gauche) (gauche-exec args))
       ((guile) (guile-exec args))
       ((gambit) (gambit-exec args))
+      ((sagittarius) (sagittarius-exec args))
       ((gerbil) (gerbil-exec args))
       ((chibi) (chibi-exec args))
       ((chicken) (chicken-exec args))
+      ((loko) (loko-exec args))
       ((cyclone) (cyclone-exec args))
       ((chez-cisco) (chez-cisco-exec args))
       ((chez-racket) (chez-racket-exec args)))))
@@ -1323,7 +1564,9 @@
 (define united-check
   (lambda (scheme args)
     (case (string->symbol scheme)
+      ((stklos) (stklos-check args))
       ((chibi) (chibi-check args))
+      ((loko) (loko-check args))
       ((gauche) (gauche-check args))
       ((gambit) (gambit-check args))
       ((racket) (racket-check args))
@@ -1331,6 +1574,7 @@
       ((guile) (guile-check args))
       ((chez-cisco) (chez-cisco-check args))
       ((chicken) (chicken-check args))
+      ((sagittarius) (sagittarius-check args))
       ((cyclone) (cyclone-check args))
       ((chez-racket) (chez-racket-check args)))))
 

@@ -1,4 +1,4 @@
-(define magic-number 13372006)
+(define magic-number 4213372006)
 
 (define ~check-united-base-000
   (lambda ()
