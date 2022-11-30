@@ -14,6 +14,8 @@
 ** mit-scheme
 
 * TODO
+** Ol Lisp https://github.com/yuriy-chumak/OL
+** Owl Scheme https://haltp.org/posts/owl.html
 ** ironscheme
 
 * Difficult
