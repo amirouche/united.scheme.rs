@@ -11,13 +11,17 @@
 ** sagittarius
 ** loko
 ** stklos
+** mit-scheme
+
 * TODO
-** mit-scheme (some r7rs support)
-** bigloo (r5rs only?)
-** ironscheme (windows only?)
+** ironscheme
 
 * Difficult
 ** gerbil
 
+
 * Not supported
 ** larceny (32 bit only)
+
+* R5RS only
+** bigloo (r5rs only?)

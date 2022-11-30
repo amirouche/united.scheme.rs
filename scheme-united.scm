@@ -88,7 +88,7 @@
   scheme-united SCHEME repl [DIRECTORY ...]
   scheme-united SCHEME version
   scheme-united available
-  scheme-united install [--latest|--stable|--version=VERSION] SCHEME ...
+  scheme-united install SCHEME ...
   scheme-united prefix [DIRECTORY]
 
 ")))
@@ -142,7 +142,6 @@
 
 (define run
   (lambda (directory env . command)
-    (pk env command)
     (unless (call-with-env env (lambda ()
                                  (if directory
                                      (with-directory directory (lambda () (apply system? command)))
@@ -470,6 +469,47 @@
 (unionize 'sagittarius 'latest
           `((install . ,(lambda () (sagittarius-install "HEAD")))))
 
+(define mit-install
+  (lambda (version)
+    (define work (string-append (united-prefix-ref) "/mit/"))
+
+    (display (string-append "* Installing mit @ " work "\n"))
+
+    ;; For some reason the following does not work
+    ;; (guard (ex (else #f))
+    ;;        (delete-file-hierarchy work))
+    (run #f '() "rm" "-rf" work)
+    (create-directory* work)
+
+    ;; install latest release to be able to compile from git
+    (run work '() "wget" "https://ftp.gnu.org/gnu/mit-scheme/stable.pkg/11.2/mit-scheme-11.2-x86-64.tar.gz")
+    (run work '() "tar" "xf" "mit-scheme-11.2-x86-64.tar.gz")
+    (run (string-append work "/mit-scheme-11.2/src/") '()
+         "sh" "configure" (string-append "--prefix=" work))
+    (run (string-append work "/mit-scheme-11.2/src/") '()
+         "make" (string-append "-j" (number->string (worker-count)))
+         ;; XXX: Drop 'warnings as errors' aka. Werror
+         "CFLAGS=")
+
+    (run (string-append work "/mit-scheme-11.2/src/") '()
+         "make" "install")
+
+    (run work '() "git" "clone" "--depth=1" "https://git.savannah.gnu.org/git/mit-scheme.git" "src")
+    (run (string-append work "/src/") '() "git" "checkout" version)
+    (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
+      (run (string-append work "/src/src/") `((PATH . ,PATH))
+         "sh" "Setup.sh")
+      (run (string-append work "/src/src/") `((PATH . ,PATH))
+         "sh" "configure" (string-append "--prefix=" work))
+      (run (string-append work "/src/src/") `((PATH . ,PATH))
+           "make" (string-append "-j" (number->string (worker-count)))
+           "CFLAGS=")
+      (run (string-append work "/src/src/") `((PATH . ,PATH))
+           "make" "install"))))
+
+(unionize 'mit 'latest
+          `((install . ,(lambda () (mit-install "HEAD")))))
+
 (define chicken-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/chicken/"))
@@ -592,6 +632,7 @@
           (unless (null? schemes)
             (case (string->symbol (car schemes))
               ((chibi) (chibi-install "HEAD"))
+              ((mit) (mit-install "HEAD"))
               ((stklos) (stklos-install "HEAD"))
               ((chez-cisco) (chez-cisco-install "HEAD"))
               ((chez-racket) (chez-racket-install "HEAD"))
@@ -924,6 +965,25 @@
 
         (let ((checks.scm (make-check-program "gambit" directories)))
           (gambit-exec (append directories (list checks.scm))))))))
+
+(define mit-check
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "mit check does not support keywords" keywords)))
+        (unless (null? files)
+          (errors (cons "mit check does not support files" files)))
+        (unless (null? arguments)
+          (errors (cons "mit check does not support files" arguments)))
+        (unless (null? extra)
+          (errors (cons "mit check does not support extra, as of yet..." extra)))
+
+        (maybe-display-errors-and-exit "mit check" errors)
+
+        (let ((checks.scm (make-check-program "mit" directories)))
+          (mit-exec (append directories (list checks.scm))))))))
 
 (define loko-check
   (lambda (arguments)
@@ -1474,6 +1534,34 @@
                "-r7"
                (append (map (lambda (x) (string-append "-L" x)) directories) files extra))))))
 
+(define mit-exec
+  (lambda (arguments)
+    (call-with-values (lambda () (command-line-parse arguments))
+      (lambda (keywords directories files arguments extra)
+
+        (define find-scheme-libraries
+          (lambda (directories)
+            (string-append "(find-scheme-libraries! "
+                           (string-join (map (lambda (x) (string-append "\"" x "\"")) directories) " ")
+                           ")")))
+
+        (define errors (make-accumulator))
+        (unless (null? keywords)
+          (errors (cons "mit exec does not support keywords" keywords)))
+        (when (or (null? files) (not (= 1 (length files))))
+          (errors (cons "mit exec expect only one file" files)))
+        (unless (null? arguments)
+          (errors (cons "mit exec does not support arguments" arguments)))
+
+        (maybe-display-errors-and-exit "mit exec" errors)
+
+        (apply run
+               #f
+               '()
+               (string-append (united-prefix-ref) "/mit/bin/scheme")
+               "--batch-mode" "--eval" (find-scheme-libraries directories) "--load" (car files) "--eval" "(exit 0)" "--" extra)))))
+
+
 (define chicken-version
   (lambda ()
     (apply run
@@ -1552,6 +1640,7 @@
       ((gauche) (gauche-exec args))
       ((guile) (guile-exec args))
       ((gambit) (gambit-exec args))
+      ((mit) (mit-exec args))
       ((sagittarius) (sagittarius-exec args))
       ((gerbil) (gerbil-exec args))
       ((chibi) (chibi-exec args))
@@ -1566,6 +1655,7 @@
     (case (string->symbol scheme)
       ((stklos) (stklos-check args))
       ((chibi) (chibi-check args))
+      ((mit) (mit-check args))
       ((loko) (loko-check args))
       ((gauche) (gauche-check args))
       ((gambit) (gambit-check args))
