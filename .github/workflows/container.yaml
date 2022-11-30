@@ -1,4 +1,4 @@
-name: container-dev
+name: container
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
-          ref: dev
+          ref: hello-schemer
 
       - name: Log in to the Container registry
         uses: docker/login-action@v1
@@ -38,7 +38,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/amirouche/scheme-united:dev
+          tags: ghcr.io/amirouche/scheme-united:latest
 
       # TODO test build
 
