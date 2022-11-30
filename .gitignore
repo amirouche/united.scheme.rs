@@ -1,3 +1,5 @@
+tmp/
+
 *.ss~
 *.ss#*
 .#*.ss
@@ -5,13 +7,3 @@
 *.scm~
 *.scm#*
 .#*.scm
-
-src/
-bin/
-include/
-lib/
-share/
-doc/
-info/
-opt/
-github.com/

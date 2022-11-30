@@ -1,0 +1,27 @@
+* WIP
+** chez-cisco
+** chez-racket
+** chibi
+** chicken
+** cyclone
+** gambit
+** gauche
+** guile
+** racket
+** sagittarius
+** loko
+** stklos
+** mit-scheme
+
+* TODO
+** ironscheme
+
+* Difficult
+** gerbil
+
+
+* Not supported
+** larceny (32 bit only)
+
+* R5RS only
+** bigloo (r5rs only?)

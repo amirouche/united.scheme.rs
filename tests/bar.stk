@@ -1,0 +1,9 @@
+(define-module bar
+  (export magic magic-number)
+  (import (scheme base))
+
+  (define magic 4213372006)
+
+  (include "united/body.scm"))
+
+(provide "bar")
