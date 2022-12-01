@@ -9,6 +9,6 @@ RUN apt update && apt upgrade --yes && apt install --yes asciidoctor autopoint b
 
 ADD ./scheme-united.scm /usr/bin/scheme-united.scm
 
-RUN scheme-united.scm available | sort | scheme-united.scm install
+RUN scheme-united.scm available | sort | xargs scheme-united.scm install
 
 RUN rm -rf /var/cache/apt/* /tmp
