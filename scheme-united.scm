@@ -570,8 +570,8 @@
          (string-append "PREFIX=" work))
     (run (string-append work "/src/") '() "make" (string-append "PREFIX=" work) "install")))
 
-(unionize 'loko 'latest
-          `((install . ,(lambda () (loko-install "HEAD")))))
+;; (unionize 'loko 'latest
+;;           `((install . ,(lambda () (loko-install "HEAD")))))
 
 (define cyclone-install
   (lambda (version)
