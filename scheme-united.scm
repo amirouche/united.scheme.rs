@@ -551,7 +551,6 @@
            (string-append (united-prefix-ref) "/chicken/bin/chicken-install")
            "r7rs"))))
 
-
 (unionize 'chicken 'latest
           `((install . ,(lambda () (chicken-install "HEAD")))))
 
@@ -565,13 +564,35 @@
            (delete-file-hierarchy work))
     (create-directory* work)
 
-    (run work '() "git" "clone" "https://scheme.fail/git/loko.git/" "src")
-    (run (string-append work "/src/") '() "make"
-         (string-append "PREFIX=" work))
-    (run (string-append work "/src/") '() "make" (string-append "PREFIX=" work) "install")))
+    (run work '() "wget" "https://gitlab.com/akkuscm/akku/uploads/819fd1f988c6af5e7df0dfa70aa3d3fe/akku-1.1.0.tar.gz")
+    (run work '() "tar" "xf" "akku-1.1.0.tar.gz")
 
-;; (unionize 'loko 'latest
-;;           `((install . ,(lambda () (loko-install "HEAD")))))
+    (let ((PATH (string-append (united-prefix-ref) "/guile/bin/"
+                               ":" (get-environment-variable "PATH")))
+          (PKG_CONFIG_PATH (string-append (united-prefix-ref) "/guile/lib/pkgconfig/")))
+      (run (string-append work "/akku-1.1.0/")
+           `((PATH . ,PATH)
+             (PKG_CONFIG_PATH . ,PKG_CONFIG_PATH))
+           "sh" "configure" (string-append "--prefix=" work)
+           (string-append "GUILD=" (united-prefix-ref) "/guile/bin/guild")
+           (string-append "GUILE_CONFIG=" (united-prefix-ref) "/guile/bin/guile-config"))
+      (run (string-append work "/akku-1.1.0/")
+           `((PATH . ,PATH))
+           "make" (string-append "-j" (number->string (worker-count))))
+      (run (string-append work "/akku-1.1.0/")
+           `((PATH . ,PATH))
+           "make" "install"))
+    (let ((PATH (string-append (united-prefix-ref) "/loko/bin/"
+                               ":" (get-environment-variable "PATH"))))
+      (run work `((PATH . ,PATH)) "git" "clone" "https://scheme.fail/git/loko.git/" "src")
+      (run (string-append work "/src/") `((PATH . ,PATH)) "make"
+           (string-append "-j" (number->string (worker-count)))
+           (string-append "PREFIX=" work))
+      (run (string-append work "/src/") `((PATH . ,PATH))
+           "make" (string-append "PREFIX=" work) "install"))))
+
+(unionize 'loko 'latest
+          `((install . ,(lambda () (loko-install "HEAD")))))
 
 (define cyclone-install
   (lambda (version)
