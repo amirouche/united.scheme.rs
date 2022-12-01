@@ -507,7 +507,7 @@
       (run (string-append work "/src/src/") `((PATH . ,PATH))
            "make" "install"))))
 
-(unionize 'mit 'latest
+#;(unionize 'mit 'latest
           `((install . ,(lambda () (mit-install "HEAD")))))
 
 (define chicken-install
