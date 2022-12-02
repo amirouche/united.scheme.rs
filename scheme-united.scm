@@ -142,6 +142,7 @@
 
 (define run
   (lambda (directory env . command)
+    ;; (pk directory env command)
     (unless (call-with-env env (lambda ()
                                  (if directory
                                      (with-directory directory (lambda () (apply system? command)))
@@ -564,21 +565,32 @@
            (delete-file-hierarchy work))
     (create-directory* work)
 
-    (run work '() "wget" "https://gitlab.com/akkuscm/akku/uploads/094ce726ce3c6cf8c14560f1e31aaea0/akku-1.1.0.amd64-linux.tar.xz")
-    (run work '() "tar" "xf" "akku-1.1.0.amd64-linux.tar.xz")
-    (run (string-append work "/akku-1.1.0.amd64-linux") '() "sh" "install.sh")
+    (run work '() "wget" "https://gitlab.com/akkuscm/akku/-/archive/v1.1.0/akku-v1.1.0.tar.bz2")
+    (run work '() "tar" "xvf" "akku-v1.1.0.tar.bz2")
 
-    (let ((PATH (string-append (get-environment-variable "HOME") "/.local/bin/"
-                               ":" (get-environment-variable "PATH"))))
-      (run work `((PATH . ,PATH)) "git" "clone" "https://scheme.fail/git/loko.git/" "src")
-      (run (string-append work "/src/") `((PATH . ,PATH)) "make"
-           (string-append "-j" (number->string (worker-count)))
+    (let* ((PATH (string-append (string-append work "/bin:")
+                               (united-prefix-ref) "/chez-cisco/bin:"
+                               (united-prefix-ref) "/guile/bin:"
+                               (get-environment-variable "PATH")))
+	  (PKG_CONFIG_PATH (string-append (united-prefix-ref) "/guile/lib/pkgconfig/"))
+	  (env `((PATH . ,PATH) (PKG_CONFIG_PATH . ,PKG_CONFIG_PATH))))
+      (run (string-append work "/akku-v1.1.0") env  "sh" "bootstrap")
+      (run (string-append work "/akku-v1.1.0") env "sh" "configure" (string-append "--prefix=" work))
+      (run (string-append work "/akku-v1.1.0") env "make" (string-append "-j" (number->string (worker-count))))
+      (run (string-append work "/akku-v1.1.0") env "make" "install")
+      (run work env "git" "clone" "https://scheme.fail/git/loko.git/" "src")
+      (run (string-append work "/src/") env "make"
+           ;; TODO: uncomment when the following is merged:
+           ;;
+           ;;   https://gitlab.com/weinholt/loko/-/merge_requests/4
+           ;;
+           ;; (string-append "-j" (number->string (worker-count)))
            (string-append "PREFIX=" work))
-      (run (string-append work "/src/") `((PATH . ,PATH))
+      (run (string-append work "/src/") env
            "make" (string-append "PREFIX=" work) "install"))))
 
-;; (unionize 'loko 'latest
-;;           `((install . ,(lambda () (loko-install "HEAD")))))
+(unionize 'loko 'latest
+          `((install . ,(lambda () (loko-install "HEAD")))))
 
 (define cyclone-install
   (lambda (version)
