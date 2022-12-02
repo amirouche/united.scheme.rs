@@ -1,1 +1,0 @@
-(import (scheme base))(import (united base))(define checks (quasiquote ((((united base) ~check-united-base-000) unquote ~check-united-base-000) (((united base) ~check-united-base-001) unquote ~check-united-base-001))))(display "* ")(display "guile")(newline)(define (check-one check) (display "** ") (display (car check)) (newline) ((cdr check)))(for-each check-one checks)
