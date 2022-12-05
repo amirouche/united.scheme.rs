@@ -311,7 +311,7 @@
     (run (string-append work "/src/")
          '()
          "make"
-         (string-append "-j" (number->string (worker-count))))
+         ;; (string-append "-j" (number->string (worker-count))))
     (run (string-append work "/src/")
          '()
          "make"
@@ -851,7 +851,7 @@
            (program `((import ,@(map car libraries+checks))
                       ;; XXX: Do not import (scheme base). Otherwise
                       ;; STKlos will shrug one way to fix it portably:
-                      ;; nly import ~check procedures that are
+                      ;; TODO only import ~check procedures that are
                       ;; necessary.
                       (define checks ,@(map cdr libraries+checks))
 
