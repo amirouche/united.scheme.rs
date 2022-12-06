@@ -11,9 +11,10 @@
 
 (define pk
   (lambda args
-    (display ";; " (current-error-port))
-    (write args (current-error-port))
-    (newline (current-error-port))
+    (when (get-environment-variable "UNITED_DEBUG")
+      (display ";; " (current-error-port))
+      (write args (current-error-port))
+      (newline (current-error-port)))
     (car (reverse args))))
 
 (define call-with-env
@@ -83,6 +84,7 @@
 (define united-usage
   (lambda ()
     (display "
+  scheme-united all check [DIRECTORY ...]
   scheme-united SCHEME check [DIRECTORY ...]
   scheme-united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
   scheme-united SCHEME repl [DIRECTORY ...]
@@ -142,7 +144,6 @@
 
 (define run
   (lambda (directory env . command)
-    ;; (pk directory env command)
     (unless (call-with-env env (lambda ()
                                  (if directory
                                      (with-directory directory (lambda () (apply system? command)))
@@ -156,13 +157,13 @@
     (set! union (cons (list scheme version methods) union))))
 
 (define united-available
-  (lambda (scheme)
-    (if scheme
-        (for-each (lambda (x) (display (cadr x)) (newline))
-                  (filter (lambda (x) (string=? scheme (symbol->string (car x))))
-                          union))
-        (for-each (lambda (x) (display x) (newline))
-                  (delete-duplicates (map car union))))))
+  (lambda ()
+    (map symbol->string (delete-duplicates (map car union)))))
+
+(define united-available-display
+  (lambda ()
+    (for-each (lambda (x) (display x) (newline))
+              (united-available))))
 
 (define worker-count
   (lambda ()
@@ -174,7 +175,7 @@
 (define united-prefix-ref
   (lambda ()
     (or (get-environment-variable "UNITED_PREFIX")
-        (string-append (get-environment-variable "$HOME")
+        (string-append (get-environment-variable "HOME")
                        "/.local/opt/united/"))))
 
 (define united-prefix-display
@@ -192,7 +193,6 @@
            (delete-file-hierarchy work))
     (create-directory* work)
 
-    ;; TODO: support cloning with full history
     (run work '() "git" "clone" "--depth=1" "https://github.com/ashinn/chibi-scheme/" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/")
@@ -244,7 +244,6 @@
            (delete-file-hierarchy work))
     (create-directory* work)
 
-    ;; TODO: support cloning with full history
     (run work '() "git" "clone" "--depth=1" "https://github.com/cisco/ChezScheme/" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/") '()
@@ -275,7 +274,6 @@
     (run (string-append work "../") '() "rm" "-rf" "guile")
     (create-directory* work)
 
-    ;; TODO: support cloning with full history with a cli flag
     (run work '() "git" "clone" "--depth=1" "https://git.sv.gnu.org/git/guile.git" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/") '()
@@ -311,7 +309,7 @@
     (run (string-append work "/src/")
          '()
          "make"
-         ;; (string-append "-j" (number->string (worker-count))))
+         #;(string-append "-j" (number->string (worker-count))))
     (run (string-append work "/src/")
          '()
          "make"
@@ -392,7 +390,6 @@
     (create-directory* work)
 
     (run work '() "wget" "https://raw.githubusercontent.com/shirok/get-gauche/master/get-gauche.sh")
-    ;; TODO: support cloning with full history
     (run work '() "bash" "get-gauche.sh" (string-append "--prefix=" work) "--force" "--skip-tests" "--auto")
     (run work '() "git" "clone" "--depth=1" "https://github.com/shirok/Gauche" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
@@ -423,7 +420,6 @@
            (delete-file-hierarchy work))
     (create-directory* work)
 
-    ;; TODO: support cloning with full history
     (run work '() "git" "clone" "--depth=1" "https://github.com/racket/ChezScheme/" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/") '()
@@ -532,7 +528,6 @@
          "make" "install"
          (string-append "PREFIX=" work))
 
-    ;; TODO: support cloning with full history
     (run work '() "git" "clone" "--depth=1" "git://code.call-cc.org/chicken-core" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
@@ -602,32 +597,27 @@
            (delete-file-hierarchy work))
     (create-directory* work)
 
-    ;; install latest release to be able to compile from git
-    (run work '() "wget" "https://github.com/justinethier/cyclone-bootstrap/archive/refs/tags/v0.33.0.tar.gz")
-    (run work '() "tar" "xf" "v0.33.0.tar.gz")
-    (run (string-append work "/cyclone-bootstrap-0.33.0")
+    (run work '() "git" "clone" "--depth=1" "https://github.com/justinethier/cyclone-bootstrap")
+    ;; TODO: delete the next line, and uncomment the following two
+    ;; lines, when the following is merged:
+    ;;
+    ;;   https://github.com/justinethier/cyclone/pull/497
+    ;;
+    (run work '() "git" "clone" "--depth=1" "--branch=fix-include" "https://github.com/amirouche/cyclone" "src")
+    ;; (run work '() "git" "clone" "--depth=1" "https://github.com/justinethier/cyclone" "src")
+    ;; (run (string-append work "/src/") '() "git" "checkout" version)
+    (run (string-append work "/src/") '() "make" "bootstrap")
+
+    (run (string-append work "/cyclone-bootstrap")
          '()
          "make"
          (string-append "PREFIX=" work)
          (string-append "-j" (number->string (worker-count))))
-    (run (string-append work "/cyclone-bootstrap-0.33.0")
+    (run (string-append work "/cyclone-bootstrap")
          '()
-         "make" "install"
-         (string-append "PREFIX=" work))
-
-    ;; TODO: support cloning with full history
-    (run work '() "git" "clone" "--depth=1" "https://github.com/justinethier/cyclone" "src")
-    (run (string-append work "/src/") '() "git" "checkout" version)
-    (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
-      (run (string-append work "/src")
-           `((PATH . ,PATH))
-           "make"
-           (string-append "PREFIX=" work)
-           (string-append "-j" (number->string (worker-count))))
-      (run (string-append work "/src")
-           `((PATH . ,PATH))
-           "make" "install"
-           (string-append "PREFIX=" work)))))
+         "make"
+         "install"
+         (string-append "PREFIX=" work))))
 
 (define united-prefix-set
   (lambda (directory)
@@ -666,8 +656,8 @@
               ((cyclone) (cyclone-install "HEAD")))
             (loop (cdr schemes))))))))
 
-(unionize 'cyclone 'latest
-          `((install . ,(lambda () (cyclone-install "HEAD")))))
+;; (unionize 'cyclone 'latest
+;;           `((install . ,(lambda () (cyclone-install "HEAD")))))
 
 (define accumulator-singleton-flush '(accumulator singleton flush))
 
@@ -798,8 +788,8 @@
     (let ((maybe-library (call-with-input-file filepath read)))
       (match maybe-library
              (('define-library name e ...)
-              (cons name (list 'quasiquote (map (lambda (x) (cons (list name x) (list 'unquote x)))
-                                                (append-map extract-checks e)))))
+              (cons name (cons 'list (map (lambda (x) (list 'cons  (list 'quote (list (cons name x))) x))
+                                          (append-map extract-checks e)))))
              (else #f)))))
 
 (define generator->reversed-list
@@ -875,6 +865,38 @@
               (loop (cdr program))))))
 
       "checks.scm")))
+
+(define generator-for-each
+  (lambda (proc generator)
+    (let loop ()
+      (let ((obj (generator)))
+        obj
+        (if (eof-object? obj)
+            (eof-object)
+            (begin
+              (proc obj)
+              (loop)))))))
+
+(define clean-c-compilation-leftovers
+  (lambda (directories)
+
+    (define maybe
+      (lambda (thunk)
+        (guard (ex (else #t))
+               (thunk))))
+
+    (define directory/basename
+      (lambda (x)
+        (string-append (directory-path x) "/" (basename-without-extension x))))
+
+    (define clean
+      (lambda (basename)
+        (for-each (lambda (x) (maybe (lambda () (delete-file (string-append basename x)))))
+                  (list ".c" ".o" ".so" ".meta"))))
+
+    (generator-for-each clean (gmap directory/basename
+                                    (gfilter (gappend (map ftw directories))
+                                             (lambda (x) (string=? (extension x) "sld")))))))
 
 (define make-chez-check-program
   (lambda (scheme directories)
@@ -1104,7 +1126,7 @@
                  (append arguments (list "checks.scm")))
           (run #f
                '()
-               "checks"))))))
+               "./checks"))))))
 
 (define chez-racket-check
   (lambda (arguments)
@@ -1195,6 +1217,8 @@
           (errors (cons "cyclone exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "cyclone exec" errors)
+
+        (clean-c-compilation-leftovers directories)
 
         (let ((arguments (append-map (lambda (x) (list "-I" x)) directories))
               (a.out (basename-without-extension (car files))))
@@ -1490,6 +1514,8 @@
 
         (maybe-display-errors-and-exit "chicken exec" errors)
 
+        (clean-c-compilation-leftovers directories)
+
         (run (directory-path (car files))
              '()
              (string-append (united-prefix-ref) "/chicken/bin/csm")
@@ -1573,6 +1599,8 @@
           (errors (cons "mit exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "mit exec" errors)
+
+        (clean-c-compilation-leftovers directories)
 
         (apply run
                #f
@@ -1669,6 +1697,14 @@
       ((chez-cisco) (chez-cisco-exec args))
       ((chez-racket) (chez-racket-exec args)))))
 
+(define united-check-all
+  (lambda (args)
+    (for-each (lambda (scheme)
+                (display "* ")
+                (display scheme)
+                (united-check scheme args))
+              (united-available))))
+
 (define united-check
   (lambda (scheme args)
     (case (string->symbol scheme)
@@ -1758,11 +1794,11 @@
           (chez-run "chez-racket" (append arguments extra)))))))
 
 (match (cdr (command-line))
- #;(("available" scheme) (united-available scheme))
- (("available") (united-available #f))
+ (("available") (united-available-display))
  (("install" . args) (united-install args))
  (("prefix" directory) (united-prefix-set directory))
  (("prefix") (united-prefix-display))
+ (("all" "check" . args) (united-check-all args))
  ((scheme "check" . args) (united-check scheme args))
  ((scheme "compile" . args) (united-compile scheme args))
  ((scheme "exec" . args) (united-exec scheme args))

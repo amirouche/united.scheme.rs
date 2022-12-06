@@ -3,6 +3,7 @@
   (export display newline command-line
           ~check-united-base-000
           ~check-united-base-001
+          ~check-united-base-002
           magic-number)
   (import (scheme base)
           (scheme write)
