@@ -1,5 +1,14 @@
 tmp/
 
+hello
+tests/hello
+checks
+checks.scm
+
+*.import.scm
+*.so
+*.o
+
 *.ss~
 *.ss#*
 .#*.ss
