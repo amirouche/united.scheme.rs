@@ -895,9 +895,18 @@
         (for-each (lambda (x) (maybe (lambda () (delete-file (string-append basename x)))))
                   (list ".c" ".o" ".so" ".meta"))))
 
-    (generator-for-each clean (gmap directory/basename
-                                    (gfilter (gappend (map ftw directories))
-                                             (lambda (x) (string=? (extension x) "sld")))))))
+    (generator-for-each clean
+                        (gmap directory/basename
+                              (gfilter (gappend (map ftw directories))
+                                       (lambda (x) (string=? (extension x) "sld")))))
+
+    (generator-for-each delete-file
+                        (gfilter (gappend (map ftw directories))
+                                 (lambda (x)
+                                   (or (string=? ".import.scm"
+                                                 (substring x (- (string-length x)
+                                                                 (string-length ".import.scm"))))
+                                       (string=? "so" (extension x))))))))
 
 (define make-chez-check-program
   (lambda (scheme directories)
