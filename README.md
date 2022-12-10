@@ -4,8 +4,6 @@
   <img src="https://raw.githubusercontent.com/amirouche/scheme-united/hello-schemer/logo.png" />
 </div>
 
-**This is a work-in-progress**
-
 > How to build portable Scheme libraries, and programs?
 
 ```
