@@ -1526,11 +1526,13 @@
 
         (clean-c-compilation-leftovers directories)
 
-        (run (directory-path (car files))
-             '()
-             (string-append (united-prefix-ref) "/chicken/bin/csm")
-             "-r7rs"
-             ".")
+        (for-each (lambda (x)
+                    (run (directory-path (car files))
+                         '()
+                         (string-append (united-prefix-ref) "/chicken/bin/csm")
+                         "-r7rs"
+                         x))
+                  directories)
         (run (directory-path (car files))
              '()
              (string-append (united-prefix-ref) "/chicken/bin/csc")
