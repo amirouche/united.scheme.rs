@@ -16,7 +16,7 @@ if test -d "$(pwd)/.git"; then
         fi
         if [ ! "$@" ]; then
             echo ""
-            echo "  🚀 🛰  Entering scheme-united environment 🌝 🌱"
+            echo "  🚀 🛰  Entering united environment 🌝 🌱"
             echo ""
             $SHELL
         else

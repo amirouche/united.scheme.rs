@@ -1,18 +1,18 @@
-# united-scheme.rs
+# united.scheme.rs
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/amirouche/scheme-united/hello-schemer/logo.png" />
+  <img src="https://raw.githubusercontent.com/amirouche/united.scheme.rs/hello-schemer/logo.png" />
 </div>
 
 > How to build portable Scheme libraries, and programs?
 
 ```
-# scheme-united all check [DIRECTORY ...]
-# scheme-united SCHEME check [DIRECTORY ...]
-# scheme-united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
-# scheme-united SCHEME repl [DIRECTORY ...]
-# scheme-united SCHEME version
-# scheme-united available
-# scheme-united install SCHEME ...
-# scheme-united prefix [DIRECTORY]
+# united all check [DIRECTORY ...]
+# united SCHEME check [DIRECTORY ...]
+# united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
+# united SCHEME repl [DIRECTORY ...]
+# united SCHEME version
+# united available
+# united install SCHEME ...
+# united prefix [DIRECTORY]
 ```

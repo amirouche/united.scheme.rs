@@ -84,14 +84,14 @@
 (define united-usage
   (lambda ()
     (display "
-  scheme-united all check [DIRECTORY ...]
-  scheme-united SCHEME check [DIRECTORY ...]
-  scheme-united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
-  scheme-united SCHEME repl [DIRECTORY ...]
-  scheme-united SCHEME version
-  scheme-united available
-  scheme-united install SCHEME ...
-  scheme-united prefix [DIRECTORY]
+  united all check [DIRECTORY ...]
+  united SCHEME check [DIRECTORY ...]
+  united SCHEME exec [DIRECTORY ...] PROGRAM [-- EXTRA ...]
+  united SCHEME repl [DIRECTORY ...]
+  united SCHEME version
+  united available
+  united install SCHEME ...
+  united prefix [DIRECTORY]
 
 ")))
 
