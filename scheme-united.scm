@@ -1389,7 +1389,7 @@
                  '()
                  (string-append (united-prefix-ref) "/stklos/bin/stklos")
 
-                 (append arguments (list "-l" "init.stk") (cons "-f" files) extra)))))))
+                 (append arguments (cons "-f" files) extra)))))))
 
 (define guile-exec
   (lambda (arguments)
