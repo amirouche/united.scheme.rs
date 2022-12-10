@@ -9,6 +9,8 @@ checks.scm
 *.so
 *.o
 
+local/
+
 *.ss~
 *.ss#*
 .#*.ss
