@@ -1,4 +1,4 @@
-# scheme-united
+# united-scheme.rs
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/amirouche/scheme-united/hello-schemer/logo.png" />
