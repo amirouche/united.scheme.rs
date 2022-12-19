@@ -10,8 +10,8 @@ RUN apt update && apt upgrade --yes && apt install --yes asciidoctor autopoint b
 # TODO: https://gitlab.com/akkuscm/akku/-/issues/67
 RUN ln -s /usr/lib/x86_64-linux-gnu/libcurl.so.4 /usr/lib/x86_64-linux-gnu/libcurl.so
 
-ADD ./scheme-united.scm /usr/bin/scheme-united.scm
+ADD ./united.scm /usr/bin/united
 
-RUN scheme-united.scm available | sort | xargs scheme-united.scm install
+RUN united available | sort | xargs united install
 
 RUN rm -rf /var/cache/apt/* /tmp
