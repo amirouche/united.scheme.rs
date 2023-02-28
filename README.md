@@ -25,7 +25,7 @@ finest competition in software ·
 ## Getting started
 
 ```sh
-git clone schemer@united.scheme.rs:united.scheme.rs
+git clone git@github.com:amirouche/united.scheme.rs.git"
 cd united.scheme.rs/
 ./venv
 united.scm available | xargs united.scm install
