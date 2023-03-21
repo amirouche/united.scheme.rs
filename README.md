@@ -1,6 +1,6 @@
 # united.scheme.rs
 
-<div style='text-align: center'>
+<div align="center">
 Frontend for several Scheme implementations · One CLI, many schemes ·
 The best ui/ux to build portable Scheme libraries · All around finest
 competition in software
@@ -10,6 +10,16 @@ competition in software
   <img src="https://raw.githubusercontent.com/amirouche/united.scheme.rs/hello-schemer/logo.png" />
 </div>
 
+## Usage with container
+
+With your favorite container CLI:
+
+1. pull the image;
+2. create a container from the image;
+3. enter inside the container;
+
+Inside the container a command called `united` can be used to achieve
+what is described in the next section.
 
 ## Usage
 
