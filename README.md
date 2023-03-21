@@ -1,8 +1,10 @@
 # united.scheme.rs
 
- · Frontend for several Scheme implementations · One CLI, many schemes
-· The best ui/ux to build portable Scheme libraries · All around
-finest competition in software ·
+<div style='text-align: center'>
+Frontend for several Scheme implementations · One CLI, many schemes ·
+The best ui/ux to build portable Scheme libraries · All around finest
+competition in software
+</div>
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/amirouche/united.scheme.rs/hello-schemer/logo.png" />
