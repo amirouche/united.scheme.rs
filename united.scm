@@ -8,6 +8,13 @@
 (import (chibi filesystem))
 (import (only (chibi ast) setenv unsetenv))
 
+(import (chibi))
+(import (chibi show))
+(import (chibi show pretty))
+
+;; Simple wrapper around chibi/show/pretty to pretty-print to a string.
+(define (pretty-print->string obj)
+  (show #f (pretty obj)))
 
 (define pk
   (lambda args
@@ -701,13 +708,13 @@
 (define chibi-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chibi exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "chibi exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chibi exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "chibi exec" errors)
@@ -807,10 +814,14 @@
                               (gmap extract-check-spec
                                     (gfilter (gappend (map ftw directories))
                                              (lambda (x) (string=? (extension x) "sld"))))))
+           (libraries+checks (filter (lambda (x)
+                                       (and x
+                                            (not (null? (cddr x)))))
+                                     libraries+checks))
            (program `((import (scheme base))
                       (import ,@(map car libraries+checks))
 
-                      (define checks ,@(map cdr libraries+checks))
+                      (define checks (list ,@(map cdr libraries+checks)))
 
                       (display "* ")
                       (display ,scheme)
@@ -822,14 +833,11 @@
                         (newline)
                         ((cdr check)))
 
-                      (for-each check-one checks))))
+                      (for-each (lambda (xs) (for-each check-one xs)) checks))))
 
       (call-with-output-file "checks.scm"
         (lambda (port)
-          (let loop ((program program))
-            (unless (null? program)
-              (write (car program) port)
-              (loop (cdr program))))))
+          (for-each (lambda (x) (show port (pretty x))) program)))
 
       "checks.scm")))
 
@@ -914,10 +922,11 @@
                               (gmap extract-check-spec
                                     (gfilter (gappend (map ftw directories))
                                              (lambda (x) (string=? (extension x) "sld"))))))
+           (_ (pk 'libraries+checks libraries+checks))
            (program `((import (chezscheme))
                       (import ,@(map car libraries+checks))
 
-                      (define checks ,@(map cdr libraries+checks))
+                      (define checks (list ,@(map cdr libraries+checks)))
 
                       (display "* ")
                       (display ,scheme)
@@ -929,27 +938,23 @@
                         (newline)
                         ((cdr check)))
 
-                      (for-each check-one checks))))
+                      (for-each (lambda (x) (for-each check-one x)) checks))))
 
       (call-with-output-file "checks.scm"
         (lambda (port)
-          (let loop ((program program))
-            (unless (null? program)
-              (write (car program) port)
-              (loop (cdr program))))))
-
+          (for-each (lambda (x) (show port (pretty x))) program)))
       "checks.scm")))
 
 (define chibi-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chibi check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "chibi check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chibi check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "chibi check does not support extra, as of yet..." extra)))
@@ -963,13 +968,13 @@
 (define stklos-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "stklos check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "stklos check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "stklos check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "stklos check does not support extra, as of yet..." extra)))
@@ -982,13 +987,13 @@
 (define gauche-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "gauche check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "gauche check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "gauche check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "gauche check does not support extra, as of yet..." extra)))
@@ -1001,32 +1006,33 @@
 (define gambit-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "gambit check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "gambit check does not support files" files)))
-        (unless (null? arguments)
-          (errors (cons "gambit check does not support files" arguments)))
+        (unless (null? unknowns)
+          (errors (cons "gambit check does not support files" unknowns)))
         (unless (null? extra)
           (errors (cons "gambit check does not support extra, as of yet..." extra)))
 
         (maybe-display-errors-and-exit "gambit check" errors)
 
         (let ((checks.scm (make-check-program "gambit" directories)))
-          (gambit-exec (append directories (list checks.scm))))))))
+          (gambit-exec (append (map (lambda (x) (string-append x "/")) directories)
+                               (list checks.scm))))))))
 
 (define mit-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "mit check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "mit check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "mit check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "mit check does not support extra, as of yet..." extra)))
@@ -1039,13 +1045,13 @@
 (define loko-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "loko check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "loko check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "loko check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "loko check does not support extra, as of yet..." extra)))
@@ -1058,13 +1064,13 @@
 (define racket-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "racket check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "racket check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "racket check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "racket check does not support extra, as of yet..." extra)))
@@ -1077,13 +1083,13 @@
 (define gerbil-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "gerbil check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "gerbil check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "gerbil check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "gerbil check does not support extra, as of yet..." extra)))
@@ -1096,13 +1102,13 @@
 (define guile-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "guile check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "guile check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "guile check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "guile check does not support extra, as of yet..." extra)))
@@ -1115,13 +1121,13 @@
 (define cyclone-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "cyclone check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "cyclone check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "cyclone check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "cyclone check does not support extra, as of yet..." extra)))
@@ -1140,14 +1146,15 @@
 
 (define chez-racket-check
   (lambda (arguments)
+    (pk (command-line-parse arguments))
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chez-racket check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "chez-racket check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chez-racket check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "chez-racket check does not support extra, as of yet..." extra)))
@@ -1160,32 +1167,33 @@
 (define chez-cisco-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chez-cisco check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "chez-cisco check does not support files" files)))
-        (unless (null? arguments)
-          (errors (cons "chez-cisco check does not support files" arguments)))
+        (unless (null? unknowns)
+          (errors (cons "chez-cisco check does not support arguments" unknowns)))
         (unless (null? extra)
           (errors (cons "chez-cisco check does not support extra, as of yet..." extra)))
 
         (maybe-display-errors-and-exit "chez-cisco check" errors)
 
         (let ((checks.scm (make-chez-check-program "chez-cisco" directories)))
+          (pk 'checks.scm checks.scm)
           (chez-cisco-exec (append directories (list checks.scm))))))))
 
 (define chicken-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chicken check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "chicken check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chicken check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "chicken check does not support extra, as of yet..." extra)))
@@ -1198,13 +1206,13 @@
 (define sagittarius-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "sagittarius check does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "sagittarius check does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "sagittarius check does not support files" arguments)))
         (unless (null? extra)
           (errors (cons "sagittarius check does not support extra, as of yet..." extra)))
@@ -1217,13 +1225,13 @@
 (define cyclone-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "cyclone exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "cyclone exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "cyclone exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "cyclone exec" errors)
@@ -1244,7 +1252,7 @@
 (define gambit-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
 
         (define make-search-option
           (lambda (directories)
@@ -1258,7 +1266,7 @@
           (errors (cons "gambit exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "gambit exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "gambit exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "gambit exec" errors)
@@ -1274,14 +1282,14 @@
 (define racket-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
 
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "racket exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "racket exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "racket exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "racket exec" errors)
@@ -1296,7 +1304,7 @@
 (define gerbil-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
 
         (define make-search-option
           (lambda (directories)
@@ -1310,7 +1318,7 @@
           (errors (cons "gerbil exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "gerbil exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "gerbil exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "gerbil exec" errors)
@@ -1323,13 +1331,13 @@
 (define gambit-repl
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "gambit repl does not support keywords" keywords)))
         (unless (zero? (length files))
           (errors (cons "gambit repl expect zero files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "gambit repl does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "gambit repl" errors)
@@ -1350,13 +1358,13 @@
 (define gauche-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "gauche exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "gauche exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "gauche exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "gauche exec" errors)
@@ -1372,13 +1380,13 @@
 (define stklos-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "stklos exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "stklos exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "stklos exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "stklos exec" errors)
@@ -1394,13 +1402,13 @@
 (define guile-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "guile exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "guile exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "guile exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "guile exec" errors)
@@ -1416,13 +1424,13 @@
 (define chibi-repl
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chibi repl does not support keywords" keywords)))
         (unless (null? files)
           (errors (cons "chibi repl does not support files" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chibi repl does not support arguments" arguments)))
         (unless (null? extra)
           (errors (cons "chibi repl does not support extra arguments" extra)))
@@ -1513,13 +1521,13 @@
 (define chicken-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chicken exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "chicken exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chicken exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "chicken exec" errors)
@@ -1545,13 +1553,13 @@
 (define loko-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "loko exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "loko exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "loko exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "loko exec" errors)
@@ -1573,13 +1581,13 @@
 (define sagittarius-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "sagittarius exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "sagittarius exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "sagittarius exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "sagittarius exec" errors)
@@ -1594,7 +1602,7 @@
 (define mit-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
 
         (define find-scheme-libraries
           (lambda (directories)
@@ -1607,7 +1615,7 @@
           (errors (cons "mit exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "mit exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "mit exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "mit exec" errors)
@@ -1763,13 +1771,13 @@
 (define chez-cisco-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chez-cisco exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "chez-cisco exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chez-cisco exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "chez-cisco exec" errors)
@@ -1786,13 +1794,13 @@
 (define chez-racket-exec
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files arguments extra)
+      (lambda (keywords directories files unknowns extra)
         (define errors (make-accumulator))
         (unless (null? keywords)
           (errors (cons "chez-racket exec does not support keywords" keywords)))
         (when (or (null? files) (not (= 1 (length files))))
           (errors (cons "chez-racket exec expect only one file" files)))
-        (unless (null? arguments)
+        (unless (null? unknowns)
           (errors (cons "chez-racket exec does not support arguments" arguments)))
 
         (maybe-display-errors-and-exit "chez-racket exec" errors)
