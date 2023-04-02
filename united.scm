@@ -230,6 +230,8 @@
     (run work '() "git" "clone" "--depth=1" "https://github.com/egallesio/STklos" "src")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (run (string-append work "/src/") '()
+         "autoreconf" "-vif")
+    (run (string-append work "/src/") '()
          "bash" "configure" (string-append "--prefix=" work))
     (run (string-append work "/src/")
          '()
