@@ -14,4 +14,4 @@ ADD ./united.scm /usr/bin/united
 
 RUN united available | sort | xargs united install
 
-RUN rm -rf /var/cache/apt/* /tmp
+RUN rm -rf /var/cache/apt/* /tmp/*
