@@ -539,6 +539,7 @@
          (string-append "PREFIX=" work))
 
     (run work '() "git" "clone" "--depth=1" "git://code.call-cc.org/chicken-core" "src")
+    (run (string-append work "/src/") '() "git" "fetch" "--tags")
     (run (string-append work "/src/") '() "git" "checkout" version)
     (let ((PATH (string-append (get-environment-variable "PATH") ":" work "/bin")))
       (run (string-append work "/src") `((PATH . ,PATH))
@@ -556,9 +557,6 @@
            '()
            (string-append (united-prefix-ref) "/chicken/bin/chicken-install")
            "r7rs"))))
-
-(unionize 'chicken 'latest
-          `((install . ,(lambda () (chicken-install "HEAD")))))
 
 (define loko-install
   (lambda (version)
@@ -655,7 +653,7 @@
               ((stklos) (stklos-install "HEAD"))
               ((chez-cisco) (chez-cisco-install "HEAD"))
               ((chez-racket) (chez-racket-install "HEAD"))
-              ((chicken) (chicken-install "HEAD"))
+              ((chicken) (chicken-install "5.3.0"))
               ((guile) (guile-install "HEAD"))
               ((gambit) (gambit-install "HEAD"))
               ((racket) (racket-install "HEAD"))
