@@ -3,6 +3,14 @@
 ** chez-racket
 ** chibi
 ** chicken
+
+make PLATFORM=linux PREFIX=$HOME/local/chicken-master spotless
+make PLATFORM=linux PREFIX=$HOME/local/chicken-master CHICKEN=$HOME/local/chicken-5.3.0/bin/chicken -j $(nproc) boot-chicken
+make PLATFORM=linux PREFIX=$HOME/local/chicken-master spotless
+make PLATFORM=linux PREFIX=$HOME/local/chicken-master CHICKEN=./chicken-boot -j $(nproc) all
+make PLATFORM=linux PREFIX=$HOME/local/chicken-master CHICKEN=./chicken-boot install
+make PLATFORM=linux PREFIX=$HOME/local/chicken-master CHICKEN=./chicken-boot check
+
 ** cyclone
 ** gambit
 ** gauche
