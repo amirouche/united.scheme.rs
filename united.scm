@@ -558,6 +558,9 @@
            (string-append (united-prefix-ref) "/chicken/bin/chicken-install")
            "r7rs"))))
 
+(unionize 'chicken 'latest
+          `((install . ,(lambda () (chicken-install "stable")))))
+
 (define loko-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/loko/"))
