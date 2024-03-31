@@ -420,36 +420,6 @@
 (unionize 'gauche 'latest
           `((install . ,(lambda () (gauche-install "HEAD")))))
 
-(define chez-racket-install
-  (lambda (version)
-    (define work (string-append (united-prefix-ref) "/chez-racket/"))
-
-    (display (string-append "* Installing chez-racket @ " work "\n"))
-
-    (guard (ex (else #f))
-           (delete-file-hierarchy work))
-    (create-directory* work)
-
-    (run work '() "git" "clone" "--depth=1" "https://github.com/racket/ChezScheme/" "src")
-    (run (string-append work "/src/") '() "git" "checkout" version)
-    (run (string-append work "/src/") '()
-         "sh" "configure" "--disable-curses" "--disable-x11" "--threads" "--kernelobj"
-         (string-append "--installprefix=" work))
-    (run (string-append work "/src/")
-         '()
-         "make"
-         (string-append "-j" (number->string (worker-count))))
-    (run (string-append work "/src/")
-         '()
-         "make"
-         "install")))
-
-(unionize 'chez-racket 'latest
-          `((install . ,(lambda () (chez-racket-install "HEAD")))))
-
-(unionize 'chez-racket 'latest
-          `((install . ,(lambda () (chez-racket-install "HEAD")))))
-
 (define sagittarius-install
   (lambda (version)
     (define work (string-append (united-prefix-ref) "/sagittarius/"))
@@ -655,7 +625,6 @@
               ((mit) (mit-install "HEAD"))
               ((stklos) (stklos-install "HEAD"))
               ((chez-cisco) (chez-cisco-install "HEAD"))
-              ((chez-racket) (chez-racket-install "HEAD"))
               ((chicken) (chicken-install "5.3.0"))
               ((guile) (guile-install "HEAD"))
               ((gambit) (gambit-install "HEAD"))
@@ -1147,26 +1116,6 @@
                '()
                "./checks"))))))
 
-(define chez-racket-check
-  (lambda (arguments)
-    (pk (command-line-parse arguments))
-    (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files unknowns extra)
-        (define errors (make-accumulator))
-        (unless (null? keywords)
-          (errors (cons "chez-racket check does not support keywords" keywords)))
-        (unless (null? files)
-          (errors (cons "chez-racket check does not support files" files)))
-        (unless (null? unknowns)
-          (errors (cons "chez-racket check does not support files" arguments)))
-        (unless (null? extra)
-          (errors (cons "chez-racket check does not support extra, as of yet..." extra)))
-
-        (maybe-display-errors-and-exit "chez-racket check" errors)
-
-        (let ((checks.scm (make-chez-check-program "chez-racket" directories)))
-          (chez-racket-exec (append directories (list checks.scm))))))))
-
 (define chez-cisco-check
   (lambda (arguments)
     (call-with-values (lambda () (command-line-parse arguments))
@@ -1468,7 +1417,6 @@
     (case (string->symbol scheme)
       ((chibi) (chibi-repl args))
       ((chez-cisco) (chez-run "chez-cisco" '()))
-      ((chez-racket) (chez-run "chez-racket" '()))
       ((guile) (guile-repl))
       ((gauche) (gauche-repl))
       ((cyclone) (cyclone-repl))
@@ -1686,7 +1634,6 @@
       ((chibi) (chibi-version))
       ((gambit) (gambit-version))
       ((chez-cisco) (chez-cisco-version))
-      ((chez-racket) (chez-racket-version))
       ((cyclone) (cyclone-version))
       ((gauche) (gauche-version))
       ((chicken) (chicken-version)))))
@@ -1699,8 +1646,7 @@
   (lambda (scheme)
     (case (string->symbol scheme)
       ((chibi) (united-not-implemented "chibi"))
-      ((chez-cisco) (united-not-implemented "chez-cisco"))
-      ((chez-racket) (united-not-implemented "chez-racket")))))
+      ((chez-cisco) (united-not-implemented "chez-cisco")))))
 
 (define united-exec
   (lambda (scheme args)
@@ -1717,8 +1663,7 @@
       ((chicken) (chicken-exec args))
       ((loko) (loko-exec args))
       ((cyclone) (cyclone-exec args))
-      ((chez-cisco) (chez-cisco-exec args))
-      ((chez-racket) (chez-racket-exec args)))))
+      ((chez-cisco) (chez-cisco-exec args)))))
 
 (define united-check-all
   (lambda (args)
@@ -1743,8 +1688,7 @@
       ((chez-cisco) (chez-cisco-check args))
       ((chicken) (chicken-check args))
       ((sagittarius) (sagittarius-check args))
-      ((cyclone) (cyclone-check args))
-      ((chez-racket) (chez-racket-check args)))))
+      ((cyclone) (cyclone-check args)))))
 
 (define chez-run
   (lambda (chez arguments)
@@ -1766,10 +1710,6 @@
 (define chez-cisco-version
   (lambda ()
     (chez-run "chez-cisco" (list "--version"))))
-
-(define chez-racket-version
-  (lambda ()
-    (chez-run "chez-racket" (list "--version"))))
 
 (define chez-cisco-exec
   (lambda (arguments)
@@ -1793,28 +1733,6 @@
           (set! arguments (append arguments (list "--program" (car files))))
 
           (chez-run "chez-cisco" (append arguments extra)))))))
-
-(define chez-racket-exec
-  (lambda (arguments)
-    (call-with-values (lambda () (command-line-parse arguments))
-      (lambda (keywords directories files unknowns extra)
-        (define errors (make-accumulator))
-        (unless (null? keywords)
-          (errors (cons "chez-racket exec does not support keywords" keywords)))
-        (when (or (null? files) (not (= 1 (length files))))
-          (errors (cons "chez-racket exec expect only one file" files)))
-        (unless (null? unknowns)
-          (errors (cons "chez-racket exec does not support arguments" arguments)))
-
-        (maybe-display-errors-and-exit "chez-racket exec" errors)
-        (let ((arguments '()))
-          (unless (null? directories)
-            (set! arguments (cons* "--libdirs"
-                                   (string-join directories ":")
-                                   arguments)))
-          (set! arguments (append arguments (list "--program" (car files))))
-
-          (chez-run "chez-racket" (append arguments extra)))))))
 
 (match (cdr (command-line))
  (("available") (united-available-display))
