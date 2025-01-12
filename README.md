@@ -45,7 +45,7 @@ what is described in the next section.
 ## Getting started
 
 ```sh
-git clone git@github.com:amirouche/united.scheme.rs.git"
+git clone git@github.com:amirouche/united.scheme.rs.git
 cd united.scheme.rs/
 ./venv
 united.scm available | xargs united.scm install
